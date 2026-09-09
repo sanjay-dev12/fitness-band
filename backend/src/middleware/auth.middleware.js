@@ -1,4 +1,4 @@
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '../utils/jwt.js';
 import User from '../modules/user/user.model.js';
 
 export const authMiddleware = async (req, res, next) => {
@@ -17,7 +17,7 @@ export const authMiddleware = async (req, res, next) => {
             throw error;
         }
         
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback_secret');
+        const decoded = verifyToken(token);
         const user = await User.findByPk(decoded.id);
         
         if (!user) {

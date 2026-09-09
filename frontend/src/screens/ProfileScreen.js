@@ -1,8 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { User, ChevronRight, Settings, HelpCircle, MessageCircle, Ruler, ShieldAlert } from 'lucide-react-native';
+import { User, ChevronRight, Settings, HelpCircle, MessageCircle, Ruler, ShieldAlert, LogIn, LogOut } from 'lucide-react-native';
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -11,8 +11,8 @@ export default function ProfileScreen() {
         </View>
         <View style={styles.userInfo}>
           <Text style={styles.userName}>Please set a Nickname</Text>
-          <TouchableOpacity style={styles.editButton}>
-            <Text style={styles.editText}>Edit</Text>
+          <TouchableOpacity style={styles.editButton} onPress={() => navigation?.navigate('Login')}>
+            <Text style={styles.editText}>Login</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -49,6 +49,12 @@ export default function ProfileScreen() {
           </TouchableOpacity>
 
           <View style={styles.menuList}>
+            <MenuListItem 
+              icon={<LogIn />} 
+              title="Account Login / Register" 
+              subtitle="Sign in to sync health data and family circle" 
+              onPress={() => navigation?.navigate('Login')}
+            />
             <MenuListItem icon={<Ruler />} title="Unit Settings" value="Unit/Time Format" />
             <MenuListItem icon={<Settings />} title="Settings" />
             <MenuListItem icon={<HelpCircle />} title="FAQs" />
@@ -59,6 +65,12 @@ export default function ProfileScreen() {
               subtitle="To avoid abnormal exercise records, messages or calls not notified, etc." 
             />
             <MenuListItem icon={<MessageCircle />} title="Message Center" />
+            <MenuListItem 
+              icon={<LogOut />} 
+              title="Log Out" 
+              subtitle="Return to Sign In screen" 
+              onPress={() => navigation?.navigate('Login')}
+            />
           </View>
 
         </ScrollView>
@@ -67,8 +79,8 @@ export default function ProfileScreen() {
   );
 }
 
-const MenuListItem = ({ icon, title, subtitle, value }) => (
-  <TouchableOpacity style={styles.menuItem}>
+const MenuListItem = ({ icon, title, subtitle, value, onPress }) => (
+  <TouchableOpacity style={styles.menuItem} onPress={onPress}>
     <View style={styles.menuItemLeft}>
       {React.cloneElement(icon, { color: '#A0A0A0', size: 20 })}
       <View style={styles.menuItemTextContainer}>

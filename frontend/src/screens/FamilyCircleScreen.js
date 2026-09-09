@@ -8,8 +8,14 @@ const MOCK_FAMILY = [
   { id: '3', name: 'Lily', relation: 'Child', status: 'Pending', avatar: 'https://i.pravatar.cc/150?u=lily' },
 ];
 
-export default function FamilyCircleScreen() {
+export default function FamilyCircleScreen({ navigation }) {
   const [familyMembers, setFamilyMembers] = useState(MOCK_FAMILY);
+
+  const handleAddFamily = () => {
+    if (navigation) {
+      navigation.navigate('FamilySetup');
+    }
+  };
 
   const renderMember = ({ item }) => (
     <TouchableOpacity style={styles.memberCard}>
@@ -42,7 +48,7 @@ export default function FamilyCircleScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Life Circle</Text>
-        <TouchableOpacity style={styles.addButton}>
+        <TouchableOpacity style={styles.addButton} onPress={handleAddFamily}>
           <UserPlus color="#003344" size={24} />
         </TouchableOpacity>
       </View>

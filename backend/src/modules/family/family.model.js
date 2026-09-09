@@ -13,7 +13,15 @@ const FamilyCircle = sequelize.define('FamilyCircle', {
     },
     childId: {
         type: DataTypes.UUID,
-        allowNull: false,
+        allowNull: true,
+    },
+    familyName: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    inviteCode: {
+        type: DataTypes.STRING,
+        allowNull: true,
     },
     status: {
         type: DataTypes.ENUM('pending', 'accepted', 'rejected'),

@@ -1,4 +1,24 @@
-import { inviteMember, getMyFamily } from './family.service.js';
+import { createFamily, joinFamilyByCode, inviteMember, getMyFamily } from './family.service.js';
+
+export const handleCreateFamily = async (req, res, next) => {
+    try {
+        const { familyName } = req.body;
+        const result = await createFamily(req.user.id, familyName);
+        res.status(201).json({ success: true, data: result });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const handleJoinFamily = async (req, res, next) => {
+    try {
+        const { inviteCode } = req.body;
+        const result = await joinFamilyByCode(req.user.id, inviteCode);
+        res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        next(error);
+    }
+};
 
 export const invite = async (req, res, next) => {
     try {

@@ -15,6 +15,11 @@ FamilyCircle.belongsTo(User, { foreignKey: 'childId', as: 'child' });
 const syncDatabase = async () => {
     try {
         await sequelize.sync({ alter: true });
+        try {
+            await sequelize.query('ALTER TABLE "FamilyCircles" ALTER COLUMN "childId" DROP NOT NULL;');
+        } catch (e) {
+            // Ignore if column is already nullable
+        }
         console.log("✓ Database synced successfully");
     } catch (error) {
         console.error("✗ Failed to sync database:", error.message);
