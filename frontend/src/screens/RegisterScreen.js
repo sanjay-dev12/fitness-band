@@ -10,7 +10,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { User, Mail, Lock, Eye, EyeOff, Activity, ArrowRight } from 'lucide-react-native';
+import { User, Lock, Eye, EyeOff, Activity, ArrowRight, Phone } from 'lucide-react-native';
 import { registerUser } from '../services/api';
 
 export default function RegisterScreen({ navigation }) {
@@ -30,7 +30,7 @@ export default function RegisterScreen({ navigation }) {
       return;
     }
     if (!identifier.trim()) {
-      setErrorMessage('Valid email or mobile number is required.');
+      setErrorMessage('Phone Number is required.');
       return;
     }
     if (!password) {
@@ -95,22 +95,24 @@ export default function RegisterScreen({ navigation }) {
               placeholder="e.g. John Doe"
               placeholderTextColor="#54717A"
               value={fullName}
-              onChangeText={setFullName}
+              onChangeText={(text) => setFullName(text.replace(/[^a-zA-Z\s]/g, ''))}
             />
           </View>
 
+
+
           {/* Identifier Input */}
-          <Text style={styles.label}>Email or Mobile Number</Text>
+          <Text style={styles.label}>Phone Number</Text>
           <View style={styles.inputContainer}>
-            <Mail color="#7A9EA8" size={20} style={styles.inputIcon} />
+            <Phone color="#7A9EA8" size={20} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="e.g. john@example.com"
+              placeholder="e.g. +1 555-0199"
               placeholderTextColor="#54717A"
               value={identifier}
               onChangeText={setIdentifier}
               autoCapitalize="none"
-              keyboardType="email-address"
+              keyboardType="phone-pad"
             />
           </View>
 
@@ -127,7 +129,7 @@ export default function RegisterScreen({ navigation }) {
               secureTextEntry={!showPassword}
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-              {showPassword ? <EyeOff color="#7A9EA8" size={20} /> : <Eye color="#7A9EA8" size={20} />}
+              {showPassword ? <EyeOff color="#00BFA5" size={16} /> : <Eye color="#7A9EA8" size={16} />}
             </TouchableOpacity>
           </View>
 
@@ -144,7 +146,7 @@ export default function RegisterScreen({ navigation }) {
               secureTextEntry={!showConfirmPassword}
             />
             <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)} style={styles.eyeIcon}>
-              {showConfirmPassword ? <EyeOff color="#7A9EA8" size={20} /> : <Eye color="#7A9EA8" size={20} />}
+              {showConfirmPassword ? <EyeOff color="#00BFA5" size={16} /> : <Eye color="#7A9EA8" size={16} />}
             </TouchableOpacity>
           </View>
 
@@ -247,7 +249,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#004D40',
     marginBottom: 16,
-    paddingHorizontal: 12,
+    paddingLeft: 12,
+    paddingRight: 40,
+    position: 'relative',
   },
   inputIcon: {
     marginRight: 10,
@@ -257,9 +261,14 @@ const styles = StyleSheet.create({
     height: 48,
     color: '#FFFFFF',
     fontSize: 16,
+    outlineStyle: 'none',
   },
   eyeIcon: {
-    padding: 6,
+    position: 'absolute',
+    right: 12,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   button: {
     backgroundColor: '#00BFA5',

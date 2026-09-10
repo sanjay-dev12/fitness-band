@@ -28,6 +28,14 @@ const User = sequelize.define('User', {
         allowNull: false,
         defaultValue: 'parent',
     },
+    country: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    state: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
 }, {
     timestamps: true,
 });

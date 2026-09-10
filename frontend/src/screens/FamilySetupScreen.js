@@ -21,10 +21,13 @@ import {
   CheckCircle,
   Copy,
 } from 'lucide-react-native';
-import { createFamilyApi, joinFamilyByCodeApi } from '../services/api';
+import { createFamilyApi, joinFamilyByCodeApi, getStoredUser } from '../services/api';
+import { useProfile } from '../context/ProfileContext';
 
 export default function FamilySetupScreen({ navigation, route }) {
-  const userName = route?.params?.userName || 'User';
+  const { showToast, addFamilyMemberProfile } = useProfile();
+  const storedUser = getStoredUser();
+  const userName = route?.params?.userName || storedUser?.fullName || 'Our';
 
   // Modes: 'select' | 'create' | 'join' | 'created_success' | 'joined_success'
   const [mode, setMode] = useState('select');
@@ -52,9 +55,16 @@ export default function FamilySetupScreen({ navigation, route }) {
       const code = response.data.inviteCode;
       setInviteCode(code);
       setMode('created_success');
+
+      // Add newly created family profile to profile switcher
+      addFamilyMemberProfile(familyName.trim(), 'Family Circle');
+
+      // Trigger custom in-app success toast
+      showToast(`🎉 Family invitation ${code} generated!`, 'success');
     } catch (error) {
       setLoading(false);
       setErrorMessage(error.message || 'Failed to create family.');
+      showToast(error.message || 'Failed to create family', 'error');
     }
   };
 
@@ -67,9 +77,9 @@ export default function FamilySetupScreen({ navigation, route }) {
       if (Platform.OS === 'web') {
         if (navigator.clipboard) {
           await navigator.clipboard.writeText(shareMessage);
-          alert('Invitation message copied to clipboard!');
+          showToast('📋 Invitation message copied to clipboard!', 'success');
         } else {
-          alert(`Copy your code: ${inviteCode}`);
+          showToast(`📋 Code: ${inviteCode}`, 'info');
         }
       } else {
         await Share.share({
@@ -99,9 +109,14 @@ export default function FamilySetupScreen({ navigation, route }) {
       const parent = response.data.parent?.fullName || 'Family Circle';
       setParentName(parent);
       setMode('joined_success');
+
+      // Add joined family to profile switcher
+      addFamilyMemberProfile(parent, 'Parent Circle');
+      showToast(`🎉 Connected to ${parent}'s family!`, 'success');
     } catch (error) {
       setLoading(false);
       setErrorMessage(error.message || 'Invalid invitation code.');
+      showToast(error.message || 'Invalid invitation code', 'error');
     }
   };
 
@@ -506,6 +521,7 @@ const styles = StyleSheet.create({
     height: 48,
     color: '#FFFFFF',
     fontSize: 16,
+    outlineStyle: 'none',
   },
   button: {
     backgroundColor: '#00BFA5',

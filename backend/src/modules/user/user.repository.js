@@ -4,6 +4,10 @@ export const findUserByIdentifier = async (identifier) => {
     return await User.findOne({ where: { identifier } });
 };
 
+export const findUserByName = async (fullName) => {
+    return await User.findOne({ where: { fullName } });
+};
+
 export const findUserById = async (id) => {
     return await User.findByPk(id);
 };

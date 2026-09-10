@@ -1,4 +1,4 @@
-import { findUserByIdentifier, createUser } from '../user/user.repository.js';
+import { findUserByIdentifier, createUser, findUserByName } from '../user/user.repository.js';
 import { hashPassword, comparePassword } from '../../utils/password.js';
 import { generateToken } from '../../utils/jwt.js';
 
@@ -31,7 +31,8 @@ export const registerUser = async (userData) => {
 };
 
 export const loginUser = async (identifier, password) => {
-    const user = await findUserByIdentifier(identifier);
+    // identifier here is the user's fullName based on new flow
+    const user = await findUserByName(identifier);
     if (!user) {
         const error = new Error('Invalid credentials');
         error.statusCode = 401;

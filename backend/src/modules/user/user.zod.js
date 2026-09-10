@@ -5,6 +5,8 @@ export const registerSchema = z.object({
     identifier: z.string().min(5, 'Valid email or mobile is required'),
     password: z.string().min(6, 'Password must be at least 6 characters'),
     accountType: z.enum(['parent', 'child']).optional().default('parent'),
+    country: z.string().optional(),
+    state: z.string().optional(),
 });
 
 export const loginSchema = z.object({

@@ -1,15 +1,61 @@
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-// In-memory token storage for active session
+const TOKEN_KEY = 'handband_auth_token';
+const USER_KEY = 'handband_user';
+
+// In-memory and persisted token storage
 let authToken = null;
+if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+  try {
+    authToken = window.localStorage.getItem(TOKEN_KEY) || null;
+  } catch (e) {}
+}
 
 export function setAuthToken(token) {
   authToken = token;
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      if (token) {
+        window.localStorage.setItem(TOKEN_KEY, token);
+      } else {
+        window.localStorage.removeItem(TOKEN_KEY);
+      }
+    } catch (e) {}
+  }
 }
 
 export function getAuthToken() {
+  if (!authToken && Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      authToken = window.localStorage.getItem(TOKEN_KEY) || null;
+    } catch (e) {}
+  }
   return authToken;
+}
+
+export function setStoredUser(user) {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      if (user) {
+        window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+      } else {
+        window.localStorage.removeItem(USER_KEY);
+      }
+    } catch (e) {}
+  }
+}
+
+export function getStoredUser() {
+  if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const data = window.localStorage.getItem(USER_KEY);
+      return data ? JSON.parse(data) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
 }
 
 // Dynamically determine the backend server IP address
@@ -45,8 +91,9 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
     ...(options.headers || {}),
   };
 
-  if (authToken) {
-    headers['Authorization'] = `Bearer ${authToken}`;
+  const activeToken = getAuthToken();
+  if (activeToken && !headers['Authorization']) {
+    headers['Authorization'] = `Bearer ${activeToken}`;
   }
 
   try {
@@ -85,6 +132,9 @@ export async function loginUser(credentials) {
     if (data?.data?.token) {
       setAuthToken(data.data.token);
     }
+    if (data?.data?.user) {
+      setStoredUser(data.data.user);
+    }
     return data;
   } catch (error) {
     throw new Error(error.message || `Unable to connect to server at ${API_BASE_URL}.`);
@@ -116,6 +166,9 @@ export async function registerUser(userData) {
 
     if (data?.data?.token) {
       setAuthToken(data.data.token);
+    }
+    if (data?.data?.user) {
+      setStoredUser(data.data.user);
     }
     return data;
   } catch (error) {

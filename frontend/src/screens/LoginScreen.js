@@ -11,7 +11,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { Mail, Lock, Eye, EyeOff, Activity, ArrowRight, ShieldCheck } from 'lucide-react-native';
+import { Mail, Lock, Eye, EyeOff, Activity, ArrowRight, ShieldCheck, User } from 'lucide-react-native';
 import { loginUser } from '../services/api';
 
 export default function LoginScreen({ navigation }) {
@@ -24,7 +24,7 @@ export default function LoginScreen({ navigation }) {
   const handleLogin = async () => {
     setErrorMessage('');
     if (!identifier.trim() || !password.trim()) {
-      setErrorMessage('Please enter both Email/Mobile and Password.');
+      setErrorMessage('Please enter both Name and Password.');
       return;
     }
 
@@ -75,17 +75,16 @@ export default function LoginScreen({ navigation }) {
           ) : null}
 
           {/* Identifier Input */}
-          <Text style={styles.label}>Email or Mobile Number</Text>
+          <Text style={styles.label}>Name</Text>
           <View style={styles.inputContainer}>
-            <Mail color="#7A9EA8" size={20} style={styles.inputIcon} />
+            <User color="#7A9EA8" size={20} style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="e.g. user@example.com"
+              placeholder="e.g. John Doe"
               placeholderTextColor="#54717A"
               value={identifier}
               onChangeText={setIdentifier}
-              autoCapitalize="none"
-              keyboardType="email-address"
+              autoCapitalize="words"
             />
           </View>
 
@@ -102,7 +101,7 @@ export default function LoginScreen({ navigation }) {
               secureTextEntry={!showPassword}
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeIcon}>
-              {showPassword ? <EyeOff color="#7A9EA8" size={20} /> : <Eye color="#7A9EA8" size={20} />}
+              {showPassword ? <EyeOff color="#00BFA5" size={16} /> : <Eye color="#7A9EA8" size={16} />}
             </TouchableOpacity>
           </View>
 
@@ -143,10 +142,16 @@ export default function LoginScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Skip / Guest Link */}
-        <TouchableOpacity style={styles.skipButton} onPress={() => navigation.navigate('MainTabs')}>
-          <ShieldCheck color="#00BFA5" size={16} />
-          <Text style={styles.skipText}>Continue to App</Text>
+        {/* Google Login Placeholder */}
+        <TouchableOpacity style={styles.googleButton} onPress={() => {
+          import('react-native').then(({ Linking }) => {
+            Linking.openURL('https://accounts.google.com/');
+          });
+        }}>
+          <View style={styles.googleIconPlaceholder}>
+            <Text style={styles.googleIconText}>G</Text>
+          </View>
+          <Text style={styles.googleButtonText}>Continue with Google</Text>
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -229,7 +234,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#004D40',
     marginBottom: 20,
-    paddingHorizontal: 12,
+    paddingLeft: 12,
+    paddingRight: 40,
+    position: 'relative',
   },
   inputIcon: {
     marginRight: 10,
@@ -239,9 +246,14 @@ const styles = StyleSheet.create({
     height: 48,
     color: '#FFFFFF',
     fontSize: 16,
+    outlineStyle: 'none',
   },
   eyeIcon: {
-    padding: 6,
+    position: 'absolute',
+    right: 12,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   forgotPasswordContainer: {
     alignSelf: 'flex-end',
@@ -288,17 +300,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  skipButton: {
+  googleButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    height: 50,
     marginTop: 24,
-    padding: 12,
+    marginHorizontal: 24,
   },
-  skipText: {
-    color: '#00BFA5',
-    fontSize: 15,
+  googleIconPlaceholder: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#EA4335',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  googleIconText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  googleButtonText: {
+    color: '#333333',
+    fontSize: 16,
     fontWeight: '600',
-    marginLeft: 8,
   },
 });
