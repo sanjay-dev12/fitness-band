@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
 import { Activity, Droplet, Footprints } from 'lucide-react-native';
 import HealthRing from '../components/HealthRing';
+import { useProfile } from '../context/ProfileContext';
 
 export default function DashboardScreen() {
+  const { activeProfile } = useProfile();
   const [refreshing, setRefreshing] = useState(false);
   const [healthData, setHealthData] = useState({
     heartRate: 72,
@@ -35,7 +37,7 @@ export default function DashboardScreen() {
     >
       <View style={styles.header}>
         <Text style={styles.greeting}>Good Morning,</Text>
-        <Text style={styles.userName}>Alex</Text>
+        <Text style={styles.userName}>{activeProfile?.name || 'User'}</Text>
       </View>
 
       <View style={styles.mainRingContainer}>

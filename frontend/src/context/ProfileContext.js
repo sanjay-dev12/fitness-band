@@ -40,7 +40,7 @@ const DEFAULT_METRICS = {
 
 const getInitialProfiles = () => {
   const loggedInUser = getStoredUser();
-  const parentName = loggedInUser?.fullName || 'Sanjay';
+  const parentName = loggedInUser?.fullName || 'User';
 
   return [
     {
@@ -54,17 +54,6 @@ const getInitialProfiles = () => {
       battery: 88,
       online: true,
     },
-    {
-      id: 'profile_2',
-      name: 'Ananya',
-      role: 'Daughter',
-      isPrimary: false,
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
-      initials: 'AN',
-      metrics: DEFAULT_METRICS.child,
-      battery: 94,
-      online: true,
-    },
   ];
 };
 
@@ -75,7 +64,10 @@ export function ProfileProvider({ children }) {
         const saved = window.localStorage.getItem(STORAGE_PROFILES_KEY);
         if (saved) {
           const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const cleanProfiles = parsed.filter((p) => p.id !== 'profile_2' && p.name !== 'Ananya');
+            if (cleanProfiles.length > 0) return cleanProfiles;
+          }
         }
       } catch (e) {}
     }
@@ -86,7 +78,7 @@ export function ProfileProvider({ children }) {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
       try {
         const savedId = window.localStorage.getItem(STORAGE_ACTIVE_ID_KEY);
-        if (savedId) return savedId;
+        if (savedId && savedId !== 'profile_2') return savedId;
       } catch (e) {}
     }
     return 'profile_1';
@@ -99,6 +91,16 @@ export function ProfileProvider({ children }) {
     type: 'success', // 'success' | 'info' | 'error'
   });
 
+  // Modern custom modal state
+  const [modal, setModal] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'success', // 'success' | 'info' | 'error'
+    confirmText: 'OK',
+    onConfirm: null,
+  });
+
   const showToast = (message, type = 'success') => {
     setToast({
       visible: true,
@@ -109,6 +111,21 @@ export function ProfileProvider({ children }) {
 
   const hideToast = () => {
     setToast((prev) => ({ ...prev, visible: false }));
+  };
+
+  const showModal = ({ title, message, type = 'success', confirmText = 'OK', onConfirm = null }) => {
+    setModal({
+      visible: true,
+      title: title || 'Notification',
+      message: message || '',
+      type,
+      confirmText,
+      onConfirm,
+    });
+  };
+
+  const hideModal = () => {
+    setModal((prev) => ({ ...prev, visible: false }));
   };
 
   // Sync profiles to localStorage on Web
@@ -177,6 +194,9 @@ export function ProfileProvider({ children }) {
         toast,
         showToast,
         hideToast,
+        modal,
+        showModal,
+        hideModal,
       }}
     >
       {children}

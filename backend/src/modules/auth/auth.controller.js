@@ -36,3 +36,16 @@ export const forgotPassword = async (req, res, next) => {
         next(error);
     }
 };
+
+export const googleLogin = async (req, res, next) => {
+    try {
+        const { idToken } = req.body;
+        const result = await authService.googleLoginUser(idToken);
+        res.status(200).json({
+            success: true,
+            data: result,
+        });
+    } catch (error) {
+        next(error);
+    }
+};

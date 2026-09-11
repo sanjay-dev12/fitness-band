@@ -12,6 +12,10 @@ export const findUserById = async (id) => {
     return await User.findByPk(id);
 };
 
+export const findUserByGoogleId = async (googleId) => {
+    return await User.findOne({ where: { googleId } });
+};
+
 export const createUser = async (userData) => {
     return await User.create(userData);
 };

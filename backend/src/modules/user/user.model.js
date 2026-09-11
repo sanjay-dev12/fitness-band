@@ -21,7 +21,17 @@ const User = sequelize.define('User', {
     },
     password: {
         type: DataTypes.STRING,
+        allowNull: true,
+    },
+    googleId: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: true,
+    },
+    authProvider: {
+        type: DataTypes.ENUM('local', 'google'),
         allowNull: false,
+        defaultValue: 'local',
     },
     accountType: {
         type: DataTypes.ENUM('parent', 'child'),

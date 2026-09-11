@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,14 +12,87 @@ import {
   ScrollView,
 } from 'react-native';
 import { Mail, Lock, Eye, EyeOff, Activity, ArrowRight, ShieldCheck, User } from 'lucide-react-native';
-import { loginUser } from '../services/api';
+import * as WebBrowser from 'expo-web-browser';
+import * as AuthSession from 'expo-auth-session';
+import * as Google from 'expo-auth-session/providers/google';
+import { loginUser, googleLoginApi } from '../services/api';
+import { useProfile } from '../context/ProfileContext';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen({ navigation }) {
+  const { showModal } = useProfile();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const redirectUri = AuthSession.makeRedirectUri();
+  useEffect(() => {
+    console.log('Google Redirect URI:', redirectUri);
+  }, [redirectUri]);
+
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || undefined,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || undefined,
+    redirectUri,
+  });
+
+  const handleGoogleIdToken = async (idToken) => {
+    setGoogleLoading(true);
+    setErrorMessage('');
+    try {
+      const result = await googleLoginApi(idToken);
+      setGoogleLoading(false);
+      showModal({
+        title: 'Login Successful! 🎉',
+        message: `Welcome to Hand Band, ${result.data?.user?.fullName || 'User'}!`,
+        type: 'success',
+        confirmText: 'Continue to Dashboard',
+        onConfirm: () => {
+          navigation.navigate('MainTabs');
+        },
+      });
+    } catch (error) {
+      setGoogleLoading(false);
+      setErrorMessage(error.message);
+      showModal({
+        title: 'Google Login Error',
+        message: error.message,
+        type: 'error',
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (response?.type === 'success') {
+      const { id_token } = response.params;
+      if (id_token) {
+        handleGoogleIdToken(id_token);
+      }
+    } else if (response?.type === 'error') {
+      setErrorMessage(response.error?.message || 'Google authentication failed.');
+    }
+  }, [response]);
+
+  const handleGooglePress = async () => {
+    setErrorMessage('');
+    try {
+      if (Platform.OS === 'web') {
+        const res = await promptAsync();
+        if (res?.type === 'success' && res.params?.id_token) {
+          await handleGoogleIdToken(res.params.id_token);
+        }
+      } else {
+        await promptAsync();
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Failed to start Google authentication.');
+    }
+  };
 
   const handleLogin = async () => {
     setErrorMessage('');
@@ -36,13 +109,15 @@ export default function LoginScreen({ navigation }) {
       });
 
       setLoading(false);
-      // Navigate to Main App on success
-      if (Platform.OS === 'web') {
-        alert('Success: Login Successful!');
-      } else {
-        Alert.alert('Success', 'Login Successful!');
-      }
-      navigation.navigate('MainTabs');
+      showModal({
+        title: 'Login Successful! 🎉',
+        message: `Welcome back to Hand Band, ${identifier.trim()}!`,
+        type: 'success',
+        confirmText: 'Continue to Dashboard',
+        onConfirm: () => {
+          navigation.navigate('MainTabs');
+        },
+      });
     } catch (error) {
       setLoading(false);
       setErrorMessage(error.message);
@@ -109,9 +184,12 @@ export default function LoginScreen({ navigation }) {
           <TouchableOpacity 
             style={styles.forgotPasswordContainer} 
             onPress={() => {
-              const msg = 'Password reset link will be sent to your registered Email/Mobile.';
-              if (Platform.OS === 'web') alert(msg);
-              else Alert.alert('Forgot Password', msg);
+              showModal({
+                title: 'Reset Password',
+                message: 'Password reset link will be sent to your registered Email or Mobile number.',
+                type: 'info',
+                confirmText: 'Got It',
+              });
             }}
           >
             <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
@@ -121,7 +199,7 @@ export default function LoginScreen({ navigation }) {
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleLogin}
-            disabled={loading}
+            disabled={loading || googleLoading}
           >
             {loading ? (
               <ActivityIndicator color="#001F27" />
@@ -142,16 +220,23 @@ export default function LoginScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Google Login Placeholder */}
-        <TouchableOpacity style={styles.googleButton} onPress={() => {
-          import('react-native').then(({ Linking }) => {
-            Linking.openURL('https://accounts.google.com/');
-          });
-        }}>
-          <View style={styles.googleIconPlaceholder}>
-            <Text style={styles.googleIconText}>G</Text>
-          </View>
-          <Text style={styles.googleButtonText}>Continue with Google</Text>
+        {/* Google Login Button */}
+        <TouchableOpacity
+          style={[styles.googleButton, (googleLoading || !request) && styles.buttonDisabled]}
+          onPress={handleGooglePress}
+          disabled={googleLoading || !request}
+          activeOpacity={0.8}
+        >
+          {googleLoading ? (
+            <ActivityIndicator color="#EA4335" />
+          ) : (
+            <>
+              <View style={styles.googleIconPlaceholder}>
+                <Text style={styles.googleIconText}>G</Text>
+              </View>
+              <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>

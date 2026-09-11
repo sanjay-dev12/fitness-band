@@ -142,6 +142,34 @@ export async function loginUser(credentials) {
 }
 
 /**
+ * Authenticate with Google ID token via backend API
+ * @param {string} idToken
+ */
+export async function googleLoginApi(idToken) {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/auth/google`, {
+      method: 'POST',
+      body: JSON.stringify({ idToken }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Google login failed. Please try again.');
+    }
+
+    if (data?.data?.token) {
+      setAuthToken(data.data.token);
+    }
+    if (data?.data?.user) {
+      setStoredUser(data.data.user);
+    }
+    return data;
+  } catch (error) {
+    throw new Error(error.message || `Unable to connect to server at ${API_BASE_URL}.`);
+  }
+}
+
+/**
  * Register user via API
  * @param {Object} userData - { fullName, identifier, password, accountType }
  */

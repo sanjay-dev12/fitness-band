@@ -14,6 +14,7 @@ import RegisterScreen from '../screens/RegisterScreen';
 import FamilySetupScreen from '../screens/FamilySetupScreen';
 import { ProfileProvider } from '../context/ProfileContext';
 import Toast from '../components/Toast';
+import CustomModal from '../components/CustomModal';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -103,6 +104,7 @@ export default function AppNavigator() {
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />
+      <CustomModal />
     </ProfileProvider>
   );
 }
