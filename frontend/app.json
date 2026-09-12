@@ -2,14 +2,17 @@
   "expo": {
     "name": "frontend",
     "slug": "frontend",
+    "scheme": "handband",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.handband.app"
     },
     "android": {
+      "package": "com.handband.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

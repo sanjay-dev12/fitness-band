@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { Plus, User, ShieldCheck } from 'lucide-react-native';
+import { Plus, Users } from 'lucide-react-native';
 import { useProfile } from '../context/ProfileContext';
 
 export default function ProfileSwitcher({ navigation }) {
@@ -16,10 +16,10 @@ export default function ProfileSwitcher({ navigation }) {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <View style={styles.titleWithBadge}>
-          <ShieldCheck color="#00BFA5" size={16} style={{ marginRight: 6 }} />
-          <Text style={styles.headerLabel}>Family Profiles</Text>
+          <Users color="#00BFA5" size={16} style={{ marginRight: 6 }} />
+          <Text style={styles.headerLabel}>Family</Text>
         </View>
-        <Text style={styles.switchHint}>Tap to switch activity</Text>
+        <Text style={styles.switchHint}>Tap a profile to view their health</Text>
       </View>
 
       <ScrollView
@@ -37,7 +37,7 @@ export default function ProfileSwitcher({ navigation }) {
               onPress={() => switchProfile(profile.id)}
               activeOpacity={0.7}
             >
-              {/* Instagram-style Ring around Avatar */}
+              {/* Ring around Avatar */}
               <View
                 style={[
                   styles.avatarRing,
@@ -54,7 +54,7 @@ export default function ProfileSwitcher({ navigation }) {
                   )}
                 </View>
 
-                {/* Active Indicator Pulse Dot */}
+                {/* Active Online Indicator */}
                 {isActive && (
                   <View style={styles.activeDotBadge}>
                     <View style={styles.activeDotInner} />
@@ -70,10 +70,10 @@ export default function ProfileSwitcher({ navigation }) {
                 {profile.name}
               </Text>
 
-              {/* Role Badge */}
+              {/* Relationship Badge */}
               <View style={[styles.roleBadge, isActive && styles.roleBadgeActive]}>
                 <Text style={[styles.roleText, isActive && styles.roleTextActive]}>
-                  {profile.role || 'Member'}
+                  {profile.role ? `${profile.role}` : 'Family Circle'}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -87,13 +87,13 @@ export default function ProfileSwitcher({ navigation }) {
           activeOpacity={0.7}
         >
           <View style={styles.addRing}>
-            <Plus color="#00BFA5" size={22} />
+            <Plus color="#00BFA5" size={20} />
           </View>
           <Text style={styles.addText} numberOfLines={1}>
             + Invite
           </Text>
           <View style={styles.addRoleBadge}>
-            <Text style={styles.addRoleText}>New</Text>
+            <Text style={styles.addRoleText}>Invite</Text>
           </View>
         </TouchableOpacity>
       </ScrollView>
@@ -106,71 +106,66 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: '#002B36',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(122, 158, 168, 0.15)',
+    borderBottomColor: 'rgba(122, 158, 168, 0.12)',
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 10,
+    paddingHorizontal: 16,
+    marginBottom: 8,
   },
   titleWithBadge: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   headerLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     color: '#FFFFFF',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   switchHint: {
     fontSize: 11,
-    color: '#7A9EA8',
+    color: '#8FAAB2',
   },
   scrollList: {
     paddingHorizontal: 16,
-    gap: 14,
+    gap: 12,
     flexDirection: 'row',
     alignItems: 'center',
   },
   profileItem: {
     alignItems: 'center',
-    width: 76,
+    width: 72,
     outlineStyle: 'none',
   },
   activeProfileItem: {
-    transform: [{ scale: 1.04 }],
+    transform: [{ scale: 1.02 }],
   },
   avatarRing: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 3,
+    padding: 2.5,
     position: 'relative',
   },
   avatarRingActive: {
     borderWidth: 2.5,
     borderColor: '#00BFA5',
     backgroundColor: 'rgba(0, 191, 165, 0.12)',
-    shadowColor: '#00BFA5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
   },
   avatarRingInactive: {
     borderWidth: 1.5,
-    borderColor: 'rgba(122, 158, 168, 0.3)',
+    borderColor: 'rgba(122, 158, 168, 0.25)',
     backgroundColor: '#001F27',
   },
   avatarInner: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     overflow: 'hidden',
     backgroundColor: '#001F27',
   },
@@ -188,7 +183,7 @@ const styles = StyleSheet.create({
   initialsText: {
     color: '#00BFA5',
     fontWeight: 'bold',
-    fontSize: 18,
+    fontSize: 16,
   },
   activeDotBadge: {
     position: 'absolute',
@@ -197,21 +192,21 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#001F27',
+    backgroundColor: '#002B36',
     justifyContent: 'center',
     alignItems: 'center',
   },
   activeDotInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
     backgroundColor: '#00E676',
   },
   profileName: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#7A9EA8',
-    marginTop: 6,
+    color: '#8FAAB2',
+    marginTop: 5,
     textAlign: 'center',
   },
   profileNameActive: {
@@ -222,13 +217,13 @@ const styles = StyleSheet.create({
     marginTop: 3,
     paddingHorizontal: 6,
     paddingVertical: 1,
-    borderRadius: 8,
-    backgroundColor: 'rgba(122, 158, 168, 0.15)',
+    borderRadius: 6,
+    backgroundColor: 'rgba(122, 158, 168, 0.12)',
   },
   roleBadgeActive: {
-    backgroundColor: 'rgba(0, 191, 165, 0.2)',
+    backgroundColor: 'rgba(0, 191, 165, 0.18)',
     borderWidth: 0.5,
-    borderColor: '#00BFA5',
+    borderColor: 'rgba(0, 191, 165, 0.4)',
   },
   roleText: {
     fontSize: 9,
@@ -240,32 +235,32 @@ const styles = StyleSheet.create({
   },
   addProfileItem: {
     alignItems: 'center',
-    width: 74,
+    width: 70,
     outlineStyle: 'none',
   },
   addRing: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     borderWidth: 1.5,
     borderColor: '#00BFA5',
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(0, 191, 165, 0.08)',
+    backgroundColor: 'rgba(0, 191, 165, 0.06)',
   },
   addText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#00BFA5',
-    marginTop: 6,
+    marginTop: 5,
     textAlign: 'center',
   },
   addRoleBadge: {
     marginTop: 3,
     paddingHorizontal: 6,
     paddingVertical: 1,
-    borderRadius: 8,
+    borderRadius: 6,
     backgroundColor: 'rgba(0, 191, 165, 0.1)',
   },
   addRoleText: {

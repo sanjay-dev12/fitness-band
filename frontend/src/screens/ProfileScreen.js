@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Platform,
 } from 'react-native';
 import {
   User,
@@ -14,583 +13,711 @@ import {
   Settings,
   HelpCircle,
   MessageCircle,
-  Ruler,
   ShieldCheck,
   LogOut,
-  Award,
-  TrendingUp,
   Watch,
   Battery,
-  Flame,
-  CheckCircle2,
-  Users,
+  Mail,
+  Phone,
+  Lock,
+  Bell,
+  Info,
+  Pencil,
 } from 'lucide-react-native';
-import ProfileSwitcher from '../components/ProfileSwitcher';
 import { useProfile } from '../context/ProfileContext';
-import { setAuthToken, setStoredUser } from '../services/api';
+import { getStoredUser, setAuthToken, setStoredUser, getMeApi, updateProfileApi } from '../services/api';
 
 export default function ProfileScreen({ navigation }) {
-  const { activeProfile, showToast } = useProfile();
+  const { profiles, showToast, showModal } = useProfile();
 
-  const handleLogout = () => {
-    setAuthToken(null);
-    setStoredUser(null);
-    showToast('Logged out successfully 👋', 'info');
-    if (navigation) {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
+  const storedUser = getStoredUser();
+  const [currentUser, setCurrentUser] = useState(storedUser);
+
+  useEffect(() => {
+    getMeApi().then((res) => {
+      if (res?.success && res.data) {
+        setCurrentUser(res.data);
+      }
+    });
+  }, []);
+
+  // CRITICAL: Identify the authenticated account OWNER independently of family switching
+  const ownerProfile =
+    profiles?.find((p) => p.isPrimary) || profiles?.[0] || {};
+
+  const ownerName = currentUser?.fullName || storedUser?.fullName || ownerProfile.name || 'Account Owner';
+  const ownerEmail =
+    currentUser?.email ||
+    storedUser?.email ||
+    (currentUser?.identifier?.includes('@')
+      ? currentUser.identifier
+      : storedUser?.identifier?.includes('@')
+      ? storedUser.identifier
+      : null) ||
+    'owner@handband.app';
+  const ownerPhone =
+    currentUser?.phone ||
+    storedUser?.phone ||
+    (!currentUser?.identifier?.includes('@') && currentUser?.identifier
+      ? currentUser.identifier
+      : !storedUser?.identifier?.includes('@') && storedUser?.identifier
+      ? storedUser.identifier
+      : null) ||
+    'Not provided';
+  const ownerAvatar = ownerProfile.avatar || null;
+  const ownerInitials = (ownerName || 'ME').slice(0, 2).toUpperCase();
+  const ownerBattery = ownerProfile.battery || 98;
+
+  const handleLogoutConfirm = () => {
+    if (showModal) {
+      showModal({
+        title: 'Sign Out',
+        message: 'Are you sure you want to sign out of your account?',
+        type: 'error',
+        confirmText: 'Sign Out',
+        onConfirm: () => {
+          setAuthToken(null);
+          setStoredUser(null);
+          if (showToast) {
+            showToast('Signed out successfully', 'info');
+          }
+          if (navigation) {
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+          }
+        },
+      });
+    } else {
+      setAuthToken(null);
+      setStoredUser(null);
+      if (navigation) {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Login' }],
+        });
+      }
+    }
+  };
+
+  const handleEditProfile = () => {
+    if (showModal) {
+      showModal({
+        title: 'Edit Personal Profile',
+        message: `Your account details are linked to your registered profile (${ownerName}). Personal info is verified via account security.`,
+        type: 'info',
+        confirmText: 'Got It',
       });
     }
   };
 
-  const awards = [
-    { label: '5K', title: 'Bronze Mover', color: '#CD7F32', achieved: true },
-    { label: '10K', title: 'Silver Pacer', color: '#00BFA5', achieved: true },
-    { label: '15K', title: 'Gold Champion', color: '#FFB300', achieved: (activeProfile.metrics?.steps || 0) >= 10000 },
-    { label: '20K', title: 'Diamond Legend', color: '#00E5FF', achieved: false },
-  ];
+  const handleOpenSetting = (title, message) => {
+    if (showModal) {
+      showModal({
+        title,
+        message,
+        type: 'info',
+        confirmText: 'Got It',
+      });
+    } else if (showToast) {
+      showToast(title, 'info');
+    }
+  };
 
   return (
     <View style={styles.container}>
-      {/* Top Header Profile Card */}
+      {/* 3. Header */}
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          {/* Avatar with Active Glow Ring */}
-          <View style={styles.avatarRing}>
-            {activeProfile.avatar ? (
-              <Image source={{ uri: activeProfile.avatar }} style={styles.avatarImage} />
-            ) : (
-              <View style={styles.avatarPlaceholder}>
-                <Text style={styles.avatarInitials}>
-                  {activeProfile.initials || 'ME'}
-                </Text>
-              </View>
-            )}
-            <View style={styles.onlineDot} />
-          </View>
-
-          {/* User Details */}
-          <View style={styles.userInfo}>
-            <View style={styles.nameRow}>
-              <Text style={styles.userName} numberOfLines={1}>
-                {activeProfile.name}
-              </Text>
-              <View style={styles.roleBadge}>
-                <Text style={styles.roleBadgeText}>
-                  {activeProfile.role || 'Member'}
-                </Text>
-              </View>
-            </View>
-            <View style={styles.deviceStatusRow}>
-              <Watch color="#00BFA5" size={14} style={{ marginRight: 5 }} />
-              <Text style={styles.deviceStatusText}>
-                HandBand Pro • {activeProfile.battery || 92}% Battery
-              </Text>
-            </View>
-          </View>
+        <View style={styles.headerLeft}>
+          <Text style={styles.headerTitle}>My Profile</Text>
+          <Text style={styles.headerSubtitle}>Manage your personal account</Text>
         </View>
+        <TouchableOpacity
+          style={styles.headerIconButton}
+          onPress={() =>
+            handleOpenSetting(
+              'App Preferences',
+              'System Units: Metric (km, kg, bpm)\nTheme: Dark Health Cyan\nVersion: 1.0.0'
+            )
+          }
+          activeOpacity={0.7}
+        >
+          <Settings color="#8FAAB2" size={20} />
+        </TouchableOpacity>
       </View>
 
-      {/* Instagram-style Profile Switcher */}
-      <ProfileSwitcher navigation={navigation} />
-
-      {/* Scrollable Content */}
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Quick Stats Summary Bar */}
-        <View style={styles.statsBar}>
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>
-              {((activeProfile.metrics?.steps || 0) / 1000).toFixed(1)}k
-            </Text>
-            <Text style={styles.statLabel}>Today Steps</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>
-              {activeProfile.metrics?.calories || 0}
-            </Text>
-            <Text style={styles.statLabel}>Kcal Burned</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statBox}>
-            <Text style={styles.statValue}>
-              {activeProfile.metrics?.heartRate || 72}
-            </Text>
-            <Text style={styles.statLabel}>Avg BPM</Text>
-          </View>
-        </View>
-
-        {/* Milestone Awards */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={styles.cardTitleRow}>
-              <Award color="#FFB300" size={18} style={{ marginRight: 8 }} />
-              <Text style={styles.cardTitle}>Fitness Milestones</Text>
-            </View>
-            <View style={styles.cardHeaderRight}>
-              <Text style={styles.cardSubtitle}>2 Achieved</Text>
-              <ChevronRight color="#7A9EA8" size={16} />
-            </View>
-          </View>
-
-          <View style={styles.awardsGrid}>
-            {awards.map((award, index) => (
-              <View key={index} style={styles.awardItem}>
-                <View
-                  style={[
-                    styles.awardCircle,
-                    { borderColor: award.color },
-                    award.achieved && styles.awardAchieved,
-                  ]}
-                >
-                  <Award
-                    color={award.achieved ? award.color : '#54717A'}
-                    size={22}
-                  />
-                  {award.achieved && (
-                    <View style={styles.checkBadge}>
-                      <CheckCircle2 color="#00E676" size={12} />
-                    </View>
-                  )}
+        {/* 4 & 5. Owner Profile Card */}
+        <View style={styles.profileCard}>
+          <View style={styles.avatarWrapper}>
+            <View style={styles.avatarRing}>
+              {ownerAvatar ? (
+                <Image source={{ uri: ownerAvatar }} style={styles.avatarImage} />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarInitials}>{ownerInitials}</Text>
                 </View>
-                <Text
-                  style={[
-                    styles.awardText,
-                    award.achieved && { color: '#FFFFFF', fontWeight: '700' },
-                  ]}
-                >
-                  {award.label}
-                </Text>
-                <Text style={styles.awardSub}>{award.title}</Text>
+              )}
+            </View>
+            <TouchableOpacity
+              style={styles.avatarEditBadge}
+              onPress={handleEditProfile}
+              activeOpacity={0.8}
+            >
+              <Pencil color="#001F27" size={12} />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.ownerName} numberOfLines={1}>
+            {ownerName}
+          </Text>
+
+          <View style={styles.roleBadge}>
+            <ShieldCheck color="#00BFA5" size={13} style={{ marginRight: 4 }} />
+            <Text style={styles.roleBadgeText}>Account Owner</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.editProfileBtn}
+            onPress={handleEditProfile}
+            activeOpacity={0.8}
+          >
+            <Pencil color="#00BFA5" size={15} style={{ marginRight: 6 }} />
+            <Text style={styles.editProfileBtnText}>Edit Profile</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* 6. Owner Personal Information */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Personal Information</Text>
+          <View style={styles.settingsList}>
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={handleEditProfile}
+              activeOpacity={0.7}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIconBox, { backgroundColor: 'rgba(0, 191, 165, 0.12)' }]}>
+                  <User color="#00BFA5" size={18} />
+                </View>
+                <View>
+                  <Text style={styles.settingLabel}>Full Name</Text>
+                  <Text style={styles.settingValue}>{ownerName}</Text>
+                </View>
               </View>
-            ))}
+              <ChevronRight color="#8FAAB2" size={18} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={handleEditProfile}
+              activeOpacity={0.7}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIconBox, { backgroundColor: 'rgba(41, 182, 246, 0.12)' }]}>
+                  <Mail color="#29B6F6" size={18} />
+                </View>
+                <View>
+                  <Text style={styles.settingLabel}>Email Address</Text>
+                  <Text style={styles.settingValue}>{ownerEmail}</Text>
+                </View>
+              </View>
+              <ChevronRight color="#8FAAB2" size={18} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.settingRow, { borderBottomWidth: 0 }]}
+              onPress={handleEditProfile}
+              activeOpacity={0.7}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIconBox, { backgroundColor: 'rgba(0, 230, 118, 0.12)' }]}>
+                  <Phone color="#00E676" size={18} />
+                </View>
+                <View>
+                  <Text style={styles.settingLabel}>Phone Number</Text>
+                  <Text style={styles.settingValue}>{ownerPhone}</Text>
+                </View>
+              </View>
+              <ChevronRight color="#8FAAB2" size={18} />
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Weekly Health Summary Report Card */}
-        <TouchableOpacity
-          style={styles.reportCard}
-          onPress={() => showToast('Weekly Report is up to date! 📈', 'info')}
-          activeOpacity={0.7}
-        >
-          <View style={styles.reportLeft}>
-            <View style={styles.reportIconBox}>
-              <TrendingUp color="#00BFA5" size={22} />
-            </View>
-            <View>
-              <Text style={styles.reportTitle}>Weekly Health Analytics</Text>
-              <Text style={styles.reportDate}>Mon - Sun • 94% Consistency</Text>
-            </View>
-          </View>
-          <View style={styles.reportRight}>
-            <Text style={styles.reportBadgeText}>View Report</Text>
-            <ChevronRight color="#00BFA5" size={16} />
-          </View>
-        </TouchableOpacity>
-
-        {/* Settings & Management Menu */}
-        <View style={styles.menuCard}>
-          <Text style={styles.menuSectionHeader}>Account & Circle</Text>
-
-          <MenuItem
-            icon={<Users color="#00BFA5" size={20} />}
-            title="Manage Family Circle"
-            subtitle="Invite members, switch roles, and pairing codes"
-            onPress={() => navigation?.navigate('FamilySetup')}
-          />
-
-          <MenuItem
-            icon={<Watch color="#00E5FF" size={20} />}
-            title="Band Device Settings"
-            subtitle="Vibration, sleep monitoring, continuous SpO2"
+        {/* 8. My Device (Owner's Wearable Only) */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>My Device</Text>
+          <TouchableOpacity
+            style={styles.deviceRow}
             onPress={() => navigation?.navigate('Device')}
-          />
-
-          <MenuItem
-            icon={<Ruler color="#7A9EA8" size={20} />}
-            title="Health Goals & Units"
-            value="Metric (km/kg)"
-            onPress={() => showToast('Target steps: 10,000 / day', 'info')}
-          />
-
-          <MenuItem
-            icon={<ShieldCheck color="#00E676" size={20} />}
-            title="Data Privacy & Sync"
-            value="Encrypted"
-            onPress={() => showToast('End-to-End Encryption is active', 'success')}
-          />
-
-          <MenuItem
-            icon={<HelpCircle color="#7A9EA8" size={20} />}
-            title="Help & Support"
-            onPress={() => showToast('Support is available 24/7', 'info')}
-          />
-
-          <MenuItem
-            icon={<LogOut color="#FF4B4B" size={20} />}
-            title="Sign Out"
-            subtitle="Switch account or sign in as another user"
-            onPress={handleLogout}
-            isDestructive
-          />
+            activeOpacity={0.75}
+          >
+            <View style={styles.deviceRowLeft}>
+              <View style={styles.deviceIconBox}>
+                <Watch color="#00BFA5" size={24} />
+              </View>
+              <View style={styles.deviceTextCol}>
+                <Text style={styles.deviceBandName}>{ownerName}'s Band</Text>
+                <View style={styles.deviceStatusSub}>
+                  <View style={styles.greenStatusDot} />
+                  <Text style={styles.deviceStatusLabel}>
+                    Connected • {ownerBattery}% Battery
+                  </Text>
+                </View>
+              </View>
+            </View>
+            <ChevronRight color="#8FAAB2" size={18} />
+          </TouchableOpacity>
         </View>
+
+        {/* 9. Account Settings */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Account & Security</Text>
+          <View style={styles.settingsList}>
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() =>
+                handleOpenSetting(
+                  'Password & Security',
+                  'Password was set during registration. To change, use the Reset Password action on the login screen.'
+                )
+              }
+              activeOpacity={0.7}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIconBox, { backgroundColor: 'rgba(255, 179, 0, 0.12)' }]}>
+                  <Lock color="#FFB300" size={18} />
+                </View>
+                <View>
+                  <Text style={styles.settingTitle}>Password & Security</Text>
+                  <Text style={styles.settingSubtitle}>Credentials & authentication</Text>
+                </View>
+              </View>
+              <ChevronRight color="#8FAAB2" size={18} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() =>
+                handleOpenSetting(
+                  'Notifications',
+                  'Push Notifications: Enabled\nHealth Goal Reminders: Active\nLow Battery Alerts: Active'
+                )
+              }
+              activeOpacity={0.7}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIconBox, { backgroundColor: 'rgba(0, 191, 165, 0.12)' }]}>
+                  <Bell color="#00BFA5" size={18} />
+                </View>
+                <View>
+                  <Text style={styles.settingTitle}>Notifications</Text>
+                  <Text style={styles.settingSubtitle}>Alerts & goal reminders</Text>
+                </View>
+              </View>
+              <ChevronRight color="#8FAAB2" size={18} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.settingRow, { borderBottomWidth: 0 }]}
+              onPress={() =>
+                handleOpenSetting(
+                  'Data Privacy & Security',
+                  'All health telemetry transmitted from your wearable is protected with 256-bit encryption. Your private metrics are only accessible to you.'
+                )
+              }
+              activeOpacity={0.7}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIconBox, { backgroundColor: 'rgba(0, 230, 118, 0.12)' }]}>
+                  <ShieldCheck color="#00E676" size={18} />
+                </View>
+                <View>
+                  <Text style={styles.settingTitle}>Privacy & Encryption</Text>
+                  <Text style={styles.settingSubtitle}>Protected biometric telemetry</Text>
+                </View>
+              </View>
+              <ChevronRight color="#8FAAB2" size={18} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 10. Help & Support */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Help & Support</Text>
+          <View style={styles.settingsList}>
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() =>
+                handleOpenSetting(
+                  'Help Center',
+                  'Wearable Tips:\n1. Wear band snugly above your wrist bone.\n2. Keep Bluetooth enabled on your phone.\n3. Keep the sensor window clean for optimal readings.'
+                )
+              }
+              activeOpacity={0.7}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIconBox, { backgroundColor: 'rgba(41, 182, 246, 0.12)' }]}>
+                  <HelpCircle color="#29B6F6" size={18} />
+                </View>
+                <View>
+                  <Text style={styles.settingTitle}>Help Center</Text>
+                  <Text style={styles.settingSubtitle}>User guides & troubleshooting</Text>
+                </View>
+              </View>
+              <ChevronRight color="#8FAAB2" size={18} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.settingRow}
+              onPress={() =>
+                handleOpenSetting(
+                  'Customer Support',
+                  'Support is available 24/7. For assistance, reach out to support@handband.app or visit the help desk.'
+                )
+              }
+              activeOpacity={0.7}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIconBox, { backgroundColor: 'rgba(171, 71, 188, 0.12)' }]}>
+                  <MessageCircle color="#AB47BC" size={18} />
+                </View>
+                <View>
+                  <Text style={styles.settingTitle}>Contact Support</Text>
+                  <Text style={styles.settingSubtitle}>24/7 customer care</Text>
+                </View>
+              </View>
+              <ChevronRight color="#8FAAB2" size={18} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.settingRow, { borderBottomWidth: 0 }]}
+              onPress={() =>
+                handleOpenSetting(
+                  'About HandBand',
+                  'HandBand Health Platform\nVersion: 1.0.0 (Production Release)\nEncrypted Family & Personal Wellness Ecosystem'
+                )
+              }
+              activeOpacity={0.7}
+            >
+              <View style={styles.settingRowLeft}>
+                <View style={[styles.settingIconBox, { backgroundColor: 'rgba(122, 158, 168, 0.12)' }]}>
+                  <Info color="#8FAAB2" size={18} />
+                </View>
+                <View>
+                  <Text style={styles.settingTitle}>About HandBand</Text>
+                  <Text style={styles.settingSubtitle}>Version 1.0.0</Text>
+                </View>
+              </View>
+              <ChevronRight color="#8FAAB2" size={18} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* 11. Sign Out Button */}
+        <TouchableOpacity
+          style={styles.signOutButton}
+          onPress={handleLogoutConfirm}
+          activeOpacity={0.8}
+        >
+          <LogOut color="#FF5252" size={18} style={{ marginRight: 8 }} />
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
 }
-
-const MenuItem = ({ icon, title, subtitle, value, onPress, isDestructive }) => (
-  <TouchableOpacity
-    style={styles.menuItem}
-    onPress={onPress}
-    activeOpacity={0.7}
-  >
-    <View style={styles.menuItemLeft}>
-      <View
-        style={[
-          styles.menuIconContainer,
-          isDestructive && styles.menuIconDestructive,
-        ]}
-      >
-        {icon}
-      </View>
-      <View style={styles.menuTextContainer}>
-        <Text
-          style={[
-            styles.menuTitle,
-            isDestructive && { color: '#FF4B4B' },
-          ]}
-        >
-          {title}
-        </Text>
-        {subtitle && <Text style={styles.menuSubtitle}>{subtitle}</Text>}
-      </View>
-    </View>
-    <View style={styles.menuItemRight}>
-      {value && <Text style={styles.menuValue}>{value}</Text>}
-      <ChevronRight
-        color={isDestructive ? '#FF4B4B' : '#7A9EA8'}
-        size={16}
-      />
-    </View>
-  </TouchableOpacity>
-);
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#001F27',
   },
+  // Header
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 50,
-    paddingBottom: 16,
-    backgroundColor: '#002B36',
-  },
-  headerContent: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 46,
+    paddingBottom: 14,
+    backgroundColor: '#002833',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(122, 158, 168, 0.1)',
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  headerTitle: {
+    color: '#FFFFFF',
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+  },
+  headerSubtitle: {
+    color: '#8FAAB2',
+    fontSize: 13,
+    marginTop: 2,
+  },
+  headerIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#002129',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(122, 158, 168, 0.2)',
+  },
+
+  // Scroll Body
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 100, // Ample space so bottom navigation never covers content
+  },
+
+  // 4 & 5. Owner Profile Card
+  profileCard: {
+    backgroundColor: '#002B36',
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(122, 158, 168, 0.18)',
+  },
+  avatarWrapper: {
+    position: 'relative',
+    marginBottom: 12,
   },
   avatarRing: {
-    width: 66,
-    height: 66,
-    borderRadius: 33,
+    width: 78,
+    height: 78,
+    borderRadius: 39,
     borderWidth: 2.5,
     borderColor: '#00BFA5',
     padding: 3,
-    position: 'relative',
-    marginRight: 16,
     backgroundColor: 'rgba(0, 191, 165, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   avatarImage: {
     width: '100%',
     height: '100%',
-    borderRadius: 30,
+    borderRadius: 35,
   },
   avatarPlaceholder: {
     width: '100%',
     height: '100%',
-    borderRadius: 30,
+    borderRadius: 35,
     backgroundColor: '#004D40',
     justifyContent: 'center',
     alignItems: 'center',
   },
   avatarInitials: {
     color: '#00BFA5',
-    fontSize: 22,
-    fontWeight: 'bold',
+    fontSize: 26,
+    fontWeight: '800',
   },
-  onlineDot: {
+  avatarEditBadge: {
     position: 'absolute',
     bottom: 2,
     right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#00E676',
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#00BFA5',
+    justifyContent: 'center',
+    alignItems: 'center',
     borderWidth: 2,
     borderColor: '#002B36',
   },
-  userInfo: {
-    flex: 1,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  userName: {
+  ownerName: {
+    fontSize: 20,
+    fontWeight: '800',
     color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: 'bold',
-    maxWidth: 160,
+    marginBottom: 6,
+    textAlign: 'center',
   },
   roleBadge: {
-    backgroundColor: 'rgba(0, 191, 165, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 191, 165, 0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 8,
     borderWidth: 0.5,
-    borderColor: '#00BFA5',
+    borderColor: 'rgba(0, 191, 165, 0.3)',
+    marginBottom: 16,
   },
   roleBadgeText: {
     color: '#00BFA5',
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
   },
-  deviceStatusRow: {
+  editProfileBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 6,
-  },
-  deviceStatusText: {
-    color: '#7A9EA8',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  statsBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#002B36',
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(122, 158, 168, 0.2)',
-  },
-  statBox: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  statValue: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: 'bold',
-  },
-  statLabel: {
-    color: '#7A9EA8',
-    fontSize: 11,
-    marginTop: 2,
-  },
-  statDivider: {
-    width: 1,
-    height: 28,
-    backgroundColor: 'rgba(122, 158, 168, 0.25)',
-  },
-  card: {
-    backgroundColor: '#002B36',
-    borderRadius: 20,
-    padding: 18,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(122, 158, 168, 0.2)',
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  cardTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cardTitle: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  cardHeaderRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  cardSubtitle: {
-    color: '#7A9EA8',
-    fontSize: 12,
-  },
-  awardsGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  awardItem: {
-    alignItems: 'center',
-    width: '23%',
-  },
-  awardCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: '#001F27',
-    borderWidth: 1.5,
     justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-    position: 'relative',
+    backgroundColor: 'rgba(0, 191, 165, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 191, 165, 0.3)',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 14,
+    width: '100%',
+    height: 44,
   },
-  awardAchieved: {
-    backgroundColor: 'rgba(0, 191, 165, 0.12)',
-    shadowColor: '#00BFA5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+  editProfileBtnText: {
+    color: '#00BFA5',
+    fontSize: 13.5,
+    fontWeight: '700',
   },
-  checkBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    backgroundColor: '#001F27',
-    borderRadius: 6,
-  },
-  awardText: {
-    color: '#7A9EA8',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  awardSub: {
-    color: '#54717A',
-    fontSize: 9,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-  reportCard: {
+
+  // Section Cards
+  sectionCard: {
     backgroundColor: '#002B36',
     borderRadius: 18,
     padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: 'rgba(0, 191, 165, 0.3)',
+    borderColor: 'rgba(122, 158, 168, 0.15)',
   },
-  reportLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  reportIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0, 191, 165, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  reportTitle: {
-    color: '#FFFFFF',
+  sectionTitle: {
     fontSize: 15,
-    fontWeight: 'bold',
-  },
-  reportDate: {
-    color: '#7A9EA8',
-    fontSize: 12,
-    marginTop: 2,
-  },
-  reportRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  reportBadgeText: {
-    color: '#00BFA5',
-    fontSize: 12,
     fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+    marginBottom: 12,
   },
-  menuCard: {
-    backgroundColor: '#002B36',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+
+  // Settings List
+  settingsList: {
+    backgroundColor: '#00222B',
+    borderRadius: 14,
+    paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: 'rgba(122, 158, 168, 0.2)',
+    borderColor: 'rgba(122, 158, 168, 0.08)',
   },
-  menuSectionHeader: {
-    color: '#7A9EA8',
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  menuItem: {
+  settingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(122, 158, 168, 0.12)',
+    borderBottomColor: 'rgba(122, 158, 168, 0.08)',
+    minHeight: 52, // Comfortable 44px+ touch target
   },
-  menuItemLeft: {
+  settingRowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
+    paddingRight: 10,
   },
-  menuIconContainer: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#001F27',
+  settingIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: 12,
   },
-  menuIconDestructive: {
-    backgroundColor: 'rgba(255, 75, 75, 0.12)',
+  settingLabel: {
+    color: '#8FAAB2',
+    fontSize: 11,
+    fontWeight: '500',
   },
-  menuTextContainer: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  menuTitle: {
+  settingValue: {
     color: '#FFFFFF',
-    fontSize: 15,
+    fontSize: 13.5,
+    fontWeight: '600',
+    marginTop: 1,
+  },
+  settingTitle: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
     fontWeight: '600',
   },
-  menuSubtitle: {
-    color: '#7A9EA8',
+  settingSubtitle: {
+    color: '#8FAAB2',
     fontSize: 11,
-    marginTop: 2,
-    lineHeight: 14,
+    marginTop: 1,
   },
-  menuItemRight: {
+
+  // 8. My Device Row
+  deviceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#00222B',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(122, 158, 168, 0.1)',
+  },
+  deviceRowLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    flex: 1,
   },
-  menuValue: {
-    color: '#7A9EA8',
-    fontSize: 12,
+  deviceIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 191, 165, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 191, 165, 0.25)',
+  },
+  deviceTextCol: {
+    flex: 1,
+  },
+  deviceBandName: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  deviceStatusSub: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  greenStatusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#00E676',
+    marginRight: 5,
+  },
+  deviceStatusLabel: {
+    color: '#00E676',
+    fontSize: 11.5,
+    fontWeight: '600',
+  },
+
+  // 11. Sign Out Button
+  signOutButton: {
+    backgroundColor: 'rgba(255, 75, 75, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 75, 75, 0.25)',
+    height: 50,
+    borderRadius: 16,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  signOutText: {
+    color: '#FF4B4B',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

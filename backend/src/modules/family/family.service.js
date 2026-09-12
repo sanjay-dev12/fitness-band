@@ -8,6 +8,7 @@ import {
 } from './family.repository.js';
 import { findUserByIdentifier } from '../user/user.repository.js';
 import User from '../user/user.model.js';
+import HealthData from '../health/health.model.js';
 
 // Helper to generate a random unique invitation code HB-XXXXX
 const generateRandomCode = () => {
@@ -104,5 +105,23 @@ export const inviteMember = async (currentUserId, inviteeIdentifier) => {
 
 export const getMyFamily = async (userId) => {
     const connections = await getConnectionsForUser(userId);
-    return connections;
+    
+    // For each connection, attach latest health data for the family member
+    const enhanced = await Promise.all(connections.map(async (c) => {
+        const plain = c.toJSON ? c.toJSON() : c;
+        const otherUserId = plain.parentId === userId ? plain.childId : plain.parentId;
+        let latestHealth = null;
+        if (otherUserId) {
+            latestHealth = await HealthData.findOne({
+                where: { userId: otherUserId },
+                order: [['recordedAt', 'DESC']]
+            });
+        }
+        return {
+            ...plain,
+            latestHealth: latestHealth ? (latestHealth.toJSON ? latestHealth.toJSON() : latestHealth) : null
+        };
+    }));
+
+    return enhanced;
 };

@@ -24,6 +24,34 @@ const HealthData = sequelize.define('HealthData', {
         allowNull: true,
         defaultValue: 0,
     },
+    calories: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        defaultValue: 0,
+    },
+    exerciseMins: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        defaultValue: 0,
+    },
+    walkingHours: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        defaultValue: 0,
+    },
+    battery: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        defaultValue: 100,
+    },
+    sleepDuration: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    statusText: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
     recordedAt: {
         type: DataTypes.DATE,
         allowNull: false,

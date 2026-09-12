@@ -1,57 +1,49 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Platform } from 'react-native';
-import { getStoredUser } from '../services/api';
+import {
+  getStoredUser,
+  getLatestHealthApi,
+  syncHealthDataApi,
+  getFamilyApi,
+  getFamilyMemberHealthApi,
+} from '../services/api';
 
 const ProfileContext = createContext(null);
 
 const STORAGE_PROFILES_KEY = 'handband_family_profiles';
 const STORAGE_ACTIVE_ID_KEY = 'handband_active_profile_id';
 
-const DEFAULT_METRICS = {
-  parent: {
-    calories: 385,
-    caloriesGoal: 500,
-    exerciseMins: 28,
-    exerciseGoal: 30,
-    walkingHours: 8,
-    walkingGoal: 12,
-    steps: 7420,
-    heartRate: 72,
-    oxygen: 98,
-    sleepDuration: '7h 20m',
-    bodyAge: 29,
-    statusText: 'In Target Zone',
-  },
-  child: {
-    calories: 460,
-    caloriesGoal: 400,
-    exerciseMins: 45,
-    exerciseGoal: 30,
-    walkingHours: 10,
-    walkingGoal: 12,
-    steps: 10840,
-    heartRate: 86,
-    oxygen: 99,
-    sleepDuration: '8h 45m',
-    bodyAge: 12,
-    statusText: 'Highly Active',
-  },
+// Real empty/baseline metrics - zero hardcoded mock values
+export const BASELINE_METRICS = {
+  calories: 0,
+  caloriesGoal: 500,
+  exerciseMins: 0,
+  exerciseGoal: 30,
+  walkingHours: 0,
+  walkingGoal: 12,
+  steps: 0,
+  heartRate: null,
+  oxygen: null,
+  sleepDuration: null,
+  bodyAge: null,
+  statusText: 'Connected',
 };
 
 const getInitialProfiles = () => {
   const loggedInUser = getStoredUser();
-  const parentName = loggedInUser?.fullName || 'User';
+  const parentName = loggedInUser?.fullName || 'Account Owner';
 
   return [
     {
-      id: 'profile_1',
+      id: 'profile_owner',
+      userId: loggedInUser?.id || null,
       name: parentName,
-      role: 'Parent',
+      role: 'Account Owner',
       isPrimary: true,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      avatar: null,
       initials: parentName.slice(0, 2).toUpperCase(),
-      metrics: DEFAULT_METRICS.parent,
-      battery: 88,
+      metrics: { ...BASELINE_METRICS },
+      battery: 98,
       online: true,
     },
   ];
@@ -65,7 +57,9 @@ export function ProfileProvider({ children }) {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            const cleanProfiles = parsed.filter((p) => p.id !== 'profile_2' && p.name !== 'Ananya');
+            const cleanProfiles = parsed.filter(
+              (p) => p.id !== 'profile_2' && p.name !== 'Ananya' && !p.avatar?.includes('unsplash')
+            );
             if (cleanProfiles.length > 0) return cleanProfiles;
           }
         }
@@ -75,13 +69,7 @@ export function ProfileProvider({ children }) {
   });
 
   const [activeProfileId, setActiveProfileId] = useState(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
-      try {
-        const savedId = window.localStorage.getItem(STORAGE_ACTIVE_ID_KEY);
-        if (savedId && savedId !== 'profile_2') return savedId;
-      } catch (e) {}
-    }
-    return 'profile_1';
+    return 'profile_owner';
   });
 
   // In-app toast state
@@ -128,6 +116,156 @@ export function ProfileProvider({ children }) {
     setModal((prev) => ({ ...prev, visible: false }));
   };
 
+  /**
+   * Fetch latest health telemetry for owner from backend
+   */
+  const refreshHealthData = useCallback(async () => {
+    try {
+      const res = await getLatestHealthApi();
+      if (res?.success && res.data) {
+        const d = res.data;
+        setProfiles((prev) =>
+          prev.map((p) => {
+            if (p.isPrimary) {
+              return {
+                ...p,
+                battery: d.battery !== null && d.battery !== undefined ? d.battery : p.battery,
+                metrics: {
+                  calories: d.calories || 0,
+                  caloriesGoal: 500,
+                  exerciseMins: d.exerciseMins || 0,
+                  exerciseGoal: 30,
+                  walkingHours: d.walkingHours || 0,
+                  walkingGoal: 12,
+                  steps: d.steps || 0,
+                  heartRate: d.heartRate || null,
+                  oxygen: d.oxygenLevel || null,
+                  sleepDuration: d.sleepDuration || null,
+                  bodyAge: null,
+                  statusText: d.statusText || 'Connected',
+                },
+              };
+            }
+            return p;
+          })
+        );
+      }
+    } catch (e) {
+      console.log('Error loading health data:', e);
+    }
+  }, []);
+
+  /**
+   * Fetch family circle members from backend database
+   */
+  const refreshFamily = useCallback(async () => {
+    try {
+      const res = await getFamilyApi();
+      if (res?.success && Array.isArray(res.data)) {
+        const stored = getStoredUser();
+        const currentUserId = stored?.id;
+
+        const familyProfiles = res.data.map((c) => {
+          const isParent = c.parentId === currentUserId;
+          const otherUser = isParent ? c.child : c.parent;
+          const memberName = otherUser?.fullName || c.familyName || 'Family Member';
+          const memberRole =
+            c.status === 'pending'
+              ? 'Pending Invite'
+              : otherUser?.accountType === 'child'
+              ? 'Child'
+              : 'Family';
+
+          const h = c.latestHealth;
+
+          return {
+            id: `family_${c.id}`,
+            memberUserId: otherUser?.id || null,
+            name: memberName,
+            role: memberRole,
+            isPrimary: false,
+            avatar: null,
+            initials: memberName.slice(0, 2).toUpperCase(),
+            metrics: h
+              ? {
+                  calories: h.calories || 0,
+                  caloriesGoal: 500,
+                  exerciseMins: h.exerciseMins || 0,
+                  exerciseGoal: 30,
+                  walkingHours: h.walkingHours || 0,
+                  walkingGoal: 12,
+                  steps: h.steps || 0,
+                  heartRate: h.heartRate || null,
+                  oxygen: h.oxygenLevel || null,
+                  sleepDuration: h.sleepDuration || null,
+                  bodyAge: null,
+                  statusText: h.statusText || 'In Target Zone',
+                }
+              : { ...BASELINE_METRICS },
+            battery: h?.battery || 90,
+            online: c.status === 'accepted',
+            inviteCode: c.inviteCode,
+            status: c.status,
+          };
+        });
+
+        setProfiles((prev) => {
+          const primary = prev.find((p) => p.isPrimary) || getInitialProfiles()[0];
+          return [primary, ...familyProfiles];
+        });
+      }
+    } catch (e) {
+      console.log('Error loading family:', e);
+    }
+  }, []);
+
+  /**
+   * Synchronize real telemetry to backend database
+   */
+  const syncHealthTelemetry = async (telemetryData) => {
+    try {
+      const res = await syncHealthDataApi(telemetryData);
+      if (res?.success && res.data) {
+        const d = res.data;
+        setProfiles((prev) =>
+          prev.map((p) => {
+            if (p.isPrimary) {
+              return {
+                ...p,
+                battery: d.battery !== null && d.battery !== undefined ? d.battery : p.battery,
+                metrics: {
+                  calories: d.calories || 0,
+                  caloriesGoal: 500,
+                  exerciseMins: d.exerciseMins || 0,
+                  exerciseGoal: 30,
+                  walkingHours: d.walkingHours || 0,
+                  walkingGoal: 12,
+                  steps: d.steps || 0,
+                  heartRate: d.heartRate || null,
+                  oxygen: d.oxygenLevel || null,
+                  sleepDuration: d.sleepDuration || null,
+                  bodyAge: null,
+                  statusText: d.statusText || 'Connected',
+                },
+              };
+            }
+            return p;
+          })
+        );
+        return { success: true, data: d };
+      }
+      return { success: false };
+    } catch (e) {
+      throw e;
+    }
+  };
+
+  // Initial load of real backend health data and family connections
+  useEffect(() => {
+    refreshHealthData();
+    refreshFamily();
+  }, [refreshHealthData, refreshFamily]);
+
   // Sync profiles to localStorage on Web
   useEffect(() => {
     if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
@@ -137,47 +275,53 @@ export function ProfileProvider({ children }) {
     }
   }, [profiles]);
 
-  // Sync activeProfileId to localStorage on Web
-  useEffect(() => {
-    if (Platform.OS === 'web' && typeof window !== 'undefined' && window.localStorage) {
-      try {
-        window.localStorage.setItem(STORAGE_ACTIVE_ID_KEY, activeProfileId);
-      } catch (e) {}
-    }
-  }, [activeProfileId]);
-
   // Switch active profile
-  const switchProfile = (profileId) => {
+  const switchProfile = async (profileId) => {
     const target = profiles.find((p) => p.id === profileId);
     if (target) {
       setActiveProfileId(profileId);
-      showToast(`Switched to ${target.name}'s Activity 📊`, 'info');
+      showToast(`Viewing ${target.name}'s Activity`, 'info');
+
+      // If family member, fetch latest health data from backend
+      if (!target.isPrimary && target.memberUserId) {
+        try {
+          const res = await getFamilyMemberHealthApi(target.memberUserId);
+          if (res?.success && res.data) {
+            const h = res.data;
+            setProfiles((prev) =>
+              prev.map((p) => {
+                if (p.id === profileId) {
+                  return {
+                    ...p,
+                    battery: h.battery || p.battery,
+                    metrics: {
+                      calories: h.calories || 0,
+                      caloriesGoal: 500,
+                      exerciseMins: h.exerciseMins || 0,
+                      exerciseGoal: 30,
+                      walkingHours: h.walkingHours || 0,
+                      walkingGoal: 12,
+                      steps: h.steps || 0,
+                      heartRate: h.heartRate || null,
+                      oxygen: h.oxygenLevel || null,
+                      sleepDuration: h.sleepDuration || null,
+                      bodyAge: null,
+                      statusText: h.statusText || 'In Target Zone',
+                    },
+                  };
+                }
+                return p;
+              })
+            );
+          }
+        } catch (e) {}
+      }
     }
   };
 
-  // Add or attach family profile
-  const addFamilyMemberProfile = (name, role = 'Member', customMetrics = null) => {
-    const newId = `profile_${Date.now()}`;
-    const newProfile = {
-      id: newId,
-      name: name || 'Family Member',
-      role: role || 'Member',
-      isPrimary: false,
-      avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150&auto=format&fit=crop&q=80',
-      initials: (name || 'FM').slice(0, 2).toUpperCase(),
-      metrics: customMetrics || DEFAULT_METRICS.child,
-      battery: 92,
-      online: true,
-    };
-
-    setProfiles((prev) => {
-      // Don't add duplicate if name exists
-      const exists = prev.some((p) => p.name.toLowerCase() === newProfile.name.toLowerCase());
-      if (exists) return prev;
-      return [...prev, newProfile];
-    });
-
-    return newProfile;
+  // Add newly invited/joined family profile
+  const addFamilyMemberProfile = (name, role = 'Member') => {
+    refreshFamily();
   };
 
   const activeProfile =
@@ -191,6 +335,9 @@ export function ProfileProvider({ children }) {
         activeProfileId,
         switchProfile,
         addFamilyMemberProfile,
+        refreshHealthData,
+        refreshFamily,
+        syncHealthTelemetry,
         toast,
         showToast,
         hideToast,

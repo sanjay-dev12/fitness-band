@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -26,13 +27,23 @@ function MainTabs() {
         tabBarActiveTintColor: '#00BFA5',
         tabBarInactiveTintColor: '#7A9EA8',
         tabBarStyle: {
-          backgroundColor: '#002B36',
-          borderTopWidth: 0,
-          paddingBottom: 10,
-          paddingTop: 10,
-          height: 70,
-          elevation: 0,
-          shadowOpacity: 0,
+          backgroundColor: '#00252F',
+          borderTopWidth: 1,
+          borderTopColor: 'rgba(122, 158, 168, 0.14)',
+          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+          paddingTop: 8,
+          height: Platform.OS === 'ios' ? 76 : 64,
+          elevation: 6,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.15,
+          shadowRadius: 6,
+        },
+        tabBarLabelStyle: {
+          fontSize: 10.5,
+          fontWeight: '600',
+          letterSpacing: 0.2,
+          marginTop: 2,
         },
         headerShown: false,
       }}
@@ -41,8 +52,8 @@ function MainTabs() {
         name="Home" 
         component={HomeScreen} 
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Home color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <Home color={color} size={20} />
           ),
         }}
       />
@@ -50,8 +61,8 @@ function MainTabs() {
         name="Exercise" 
         component={ExerciseScreen} 
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Activity color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <Activity color={color} size={20} />
           ),
         }}
       />
@@ -59,8 +70,8 @@ function MainTabs() {
         name="Device" 
         component={DeviceScreen} 
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Watch color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <Watch color={color} size={20} />
           ),
         }}
       />
@@ -68,8 +79,8 @@ function MainTabs() {
         name="Family" 
         component={FamilyCircleScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <Users color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <Users color={color} size={20} />
           ),
         }}
       />
@@ -77,8 +88,8 @@ function MainTabs() {
         name="My" 
         component={ProfileScreen}
         options={{
-          tabBarIcon: ({ color, size }) => (
-            <UserIcon color={color} size={size} />
+          tabBarIcon: ({ color }) => (
+            <UserIcon color={color} size={20} />
           ),
         }}
       />

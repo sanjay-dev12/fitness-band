@@ -29,15 +29,29 @@ export default function LoginScreen({ navigation }) {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const redirectUri = AuthSession.makeRedirectUri();
+  const redirectUri = AuthSession.makeRedirectUri({
+    scheme: 'handband',
+  });
+
   useEffect(() => {
     console.log('Google Redirect URI:', redirectUri);
   }, [redirectUri]);
 
+  const googleWebClientId = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || '';
+  const googleAndroidClientId =
+    process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID ||
+    googleWebClientId ||
+    'dummy-android-client-id';
+  const googleIosClientId =
+    process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID ||
+    googleWebClientId ||
+    'dummy-ios-client-id';
+
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || undefined,
-    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || undefined,
-    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || undefined,
+    clientId: googleWebClientId || 'dummy-client-id',
+    webClientId: googleWebClientId || undefined,
+    iosClientId: googleIosClientId,
+    androidClientId: googleAndroidClientId,
     redirectUri,
   });
 

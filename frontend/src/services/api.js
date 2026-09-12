@@ -255,3 +255,134 @@ export async function joinFamilyByCodeApi(inviteCode, tokenOverride) {
     throw new Error(error.message || 'Network error joining family.');
   }
 }
+
+/**
+ * Fetch current authenticated user profile
+ */
+export async function getMeApi() {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/auth/me`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch user profile.');
+    }
+    if (data?.data) {
+      setStoredUser(data.data);
+    }
+    return data;
+  } catch (error) {
+    console.log('getMeApi error:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Update authenticated user profile
+ */
+export async function updateProfileApi(profileData) {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/auth/profile`, {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to update profile.');
+    }
+    if (data?.data) {
+      setStoredUser(data.data);
+    }
+    return data;
+  } catch (error) {
+    throw new Error(error.message || 'Error updating profile.');
+  }
+}
+
+/**
+ * Fetch latest health telemetry for current user
+ */
+export async function getLatestHealthApi() {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/health/latest`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch latest health data.');
+    }
+    return data;
+  } catch (error) {
+    console.log('getLatestHealthApi error:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Synchronize health telemetry with backend database
+ * @param {Object} telemetryData - { heartRate, oxygenLevel, steps, calories, exerciseMins, walkingHours, battery, sleepDuration, statusText }
+ */
+export async function syncHealthDataApi(telemetryData) {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/health/sync`, {
+      method: 'POST',
+      body: JSON.stringify(telemetryData),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to sync health telemetry.');
+    }
+    return data;
+  } catch (error) {
+    throw new Error(error.message || 'Network error synchronizing telemetry.');
+  }
+}
+
+/**
+ * Fetch health telemetry history
+ */
+export async function getHealthHistoryApi(days = 7) {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/health/history?days=${days}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch health history.');
+    }
+    return data;
+  } catch (error) {
+    console.log('getHealthHistoryApi error:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Fetch all family circle connections
+ */
+export async function getFamilyApi() {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/family`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch family members.');
+    }
+    return data;
+  } catch (error) {
+    console.log('getFamilyApi error:', error.message);
+    return { success: false, data: [] };
+  }
+}
+
+/**
+ * Fetch a specific family member's health telemetry
+ */
+export async function getFamilyMemberHealthApi(memberId) {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/health/family/${memberId}`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch family member health.');
+    }
+    return data;
+  } catch (error) {
+    console.log('getFamilyMemberHealthApi error:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
