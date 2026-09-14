@@ -105,24 +105,14 @@ export default function ExerciseScreen() {
 
   const handleEndWorkout = () => {
     const finalTime = formatTimer(workoutSeconds);
-    const finalCalories = Math.round(workoutSeconds * 0.14);
     const workoutMins = Math.max(1, Math.round(workoutSeconds / 60));
-    const addedSteps = Math.round(workoutSeconds * 1.8);
 
-    // Save real workout telemetry to database via backend API
+    // Save workout session to database via backend API
     if (syncHealthTelemetry) {
-      const currentCal = m.calories || 0;
-      const currentMins = m.exerciseMins || 0;
-      const currentSteps = m.steps || 0;
       syncHealthTelemetry({
-        calories: currentCal + finalCalories,
-        exerciseMins: currentMins + workoutMins,
-        steps: currentSteps + addedSteps,
-        heartRate: 110,
-        oxygenLevel: 98,
-        walkingHours: Math.min(12, (m.walkingHours || 0) + 1),
-        battery: activeProfile?.battery || 95,
-        statusText: 'Post Workout Active',
+        workoutType: selectedWorkout.title,
+        workoutDuration: workoutMins,
+        source: 'Pebble Exercise Session',
       }).catch((e) => console.log('Workout sync error:', e.message));
     }
 
@@ -132,7 +122,7 @@ export default function ExerciseScreen() {
 
     showModal({
       title: 'Workout Completed',
-      message: `Great job! You finished your ${selectedWorkout.title} in ${finalTime} and burned ${finalCalories} kcal. Telemetry saved to your health log.`,
+      message: `Great job! You finished your ${selectedWorkout.title} in ${finalTime}. Telemetry saved to your health log.`,
       type: 'success',
       confirmText: 'Done',
     });
@@ -140,12 +130,10 @@ export default function ExerciseScreen() {
 
   // Active Workout View
   if (isWorkoutActive) {
-    const liveCalories = Math.round(workoutSeconds * 0.14);
-    const liveHeartRate = m.heartRate
-      ? m.heartRate + Math.min(30, Math.floor(workoutSeconds / 10))
-      : 128;
-    const liveDistance = (workoutSeconds * 0.0028).toFixed(2);
-    const liveSteps = (m.steps || 0) + Math.floor(workoutSeconds * 1.8);
+    const liveCalories = m.calories !== null && m.calories !== undefined ? m.calories : '--';
+    const liveHeartRate = m.heartRate || '--';
+    const liveDistance = m.distance !== null && m.distance !== undefined ? m.distance : '--';
+    const liveSteps = m.steps !== null && m.steps !== undefined ? m.steps.toLocaleString() : '--';
 
     return (
       <View style={styles.container}>

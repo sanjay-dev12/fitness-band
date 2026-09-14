@@ -18,8 +18,16 @@ import {
   ChevronRight,
   ShieldCheck,
   Zap,
+  CheckCircle2,
+  AlertTriangle,
+  AlertCircle,
 } from 'lucide-react-native';
 import { useProfile } from '../context/ProfileContext';
+import {
+  checkHealthPermissions,
+  requestHealthPermissions,
+  checkHealthConnectAvailability,
+} from '../modules/health/health.service';
 
 export default function DeviceScreen({ navigation }) {
   const {
@@ -28,46 +36,77 @@ export default function DeviceScreen({ navigation }) {
     switchProfile,
     showModal,
     showToast,
-    syncHealthTelemetry,
+    syncHealthData,
+    lastSyncedTime,
   } = useProfile();
 
   const [isDeviceBound, setIsDeviceBound] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncedText, setLastSyncedText] = useState('Just now');
+  const [syncStatus, setSyncStatus] = useState('ready'); // 'ready' | 'syncing' | 'success' | 'permission_required' | 'error'
 
   const batteryLevel = activeProfile?.battery || 98;
 
+  const formatLastSynced = (date) => {
+    if (!date) return 'Not synced yet';
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 'Not synced yet';
+    const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    const isToday = d.toDateString() === new Date().toDateString();
+    return isToday ? `Today, ${timeStr}` : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timeStr}`;
+  };
+
   const handleSyncNow = async () => {
-    if (isSyncing) return;
-    setIsSyncing(true);
+    if (syncStatus === 'syncing') return;
+
+    if (!isDeviceBound) {
+      if (showToast) {
+        showToast('Please connect your health band first', 'error');
+      }
+      return;
+    }
+
+    setSyncStatus('syncing');
 
     try {
-      const m = activeProfile?.metrics || {};
-      const payload = {
-        heartRate: m.heartRate || 72,
-        oxygenLevel: m.oxygen || 98,
-        steps: m.steps || 0,
-        calories: m.calories || 0,
-        exerciseMins: m.exerciseMins || 0,
-        walkingHours: m.walkingHours || 0,
-        battery: batteryLevel,
-        sleepDuration: m.sleepDuration || null,
-        statusText: 'Synchronized',
-      };
-
-      if (syncHealthTelemetry) {
-        await syncHealthTelemetry(payload);
+      // 1. Verify health permissions
+      const perms = await checkHealthPermissions();
+      if (!perms.hasHeartRate) {
+        const req = await requestHealthPermissions();
+        if (!req.granted) {
+          setSyncStatus('permission_required');
+          if (showToast) {
+            showToast('Health data permission required to read telemetry', 'error');
+          }
+          return;
+        }
       }
-      setLastSyncedText('Just now');
-      if (showToast) {
-        showToast('Health telemetry synchronized with server', 'success');
+
+      // 2. Perform synchronization
+      const res = await syncHealthData();
+      if (res?.success) {
+        setSyncStatus('success');
+        if (showToast) {
+          showToast('Health data synced successfully', 'success');
+        }
+        // Return to ready after 4 seconds
+        setTimeout(() => {
+          setSyncStatus((cur) => (cur === 'success' ? 'ready' : cur));
+        }, 4000);
+      } else if (res?.permissionRequired) {
+        setSyncStatus('permission_required');
+        if (showToast) {
+          showToast('Health data permission required', 'error');
+        }
+      } else {
+        setSyncStatus('error');
+        if (showToast) {
+          showToast(res?.error || 'Unable to sync health data', 'error');
+        }
       }
     } catch (e) {
+      setSyncStatus('error');
       if (showToast) {
-        showToast(e.message || 'Sync failed', 'error');
+        showToast(e.message || 'Unable to sync health data', 'error');
       }
-    } finally {
-      setIsSyncing(false);
     }
   };
 
@@ -210,27 +249,47 @@ export default function DeviceScreen({ navigation }) {
                     <RefreshCw color="#29B6F6" size={16} />
                     <Text style={styles.statTileLabel}>Last Synced</Text>
                   </View>
-                  <Text style={styles.statTileValue}>{lastSyncedText}</Text>
+                  <Text style={styles.statTileValue}>{formatLastSynced(lastSyncedTime)}</Text>
                   <Text style={styles.statTileSub}>Telemetry active</Text>
                 </View>
               </View>
 
-              {/* 8. Sync Now Button */}
+              {/* 8. Sync Health Data Button */}
               <TouchableOpacity
-                style={[styles.syncButton, isSyncing && styles.syncButtonDisabled]}
+                style={[
+                  styles.syncButton,
+                  syncStatus === 'syncing' && styles.syncButtonDisabled,
+                  syncStatus === 'permission_required' && styles.syncButtonPermission,
+                  syncStatus === 'error' && styles.syncButtonError,
+                ]}
                 onPress={handleSyncNow}
-                disabled={isSyncing}
+                disabled={syncStatus === 'syncing'}
                 activeOpacity={0.8}
               >
-                {isSyncing ? (
+                {syncStatus === 'syncing' ? (
                   <>
                     <ActivityIndicator size="small" color="#001F27" style={{ marginRight: 8 }} />
-                    <Text style={styles.syncButtonText}>Syncing Telemetry...</Text>
+                    <Text style={styles.syncButtonText}>Syncing Health Data...</Text>
+                  </>
+                ) : syncStatus === 'success' ? (
+                  <>
+                    <CheckCircle2 color="#001F27" size={18} style={{ marginRight: 8 }} />
+                    <Text style={styles.syncButtonText}>Sync Complete</Text>
+                  </>
+                ) : syncStatus === 'permission_required' ? (
+                  <>
+                    <AlertTriangle color="#FFFFFF" size={18} style={{ marginRight: 8 }} />
+                    <Text style={[styles.syncButtonText, { color: '#FFFFFF' }]}>Health Data Permission Required</Text>
+                  </>
+                ) : syncStatus === 'error' ? (
+                  <>
+                    <AlertCircle color="#FFFFFF" size={18} style={{ marginRight: 8 }} />
+                    <Text style={[styles.syncButtonText, { color: '#FFFFFF' }]}>Sync Failed — Tap to Retry</Text>
                   </>
                 ) : (
                   <>
                     <RefreshCw color="#001F27" size={18} style={{ marginRight: 8 }} />
-                    <Text style={styles.syncButtonText}>Sync Now</Text>
+                    <Text style={styles.syncButtonText}>Sync Health Data</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -608,6 +667,14 @@ const styles = StyleSheet.create({
   },
   syncButtonDisabled: {
     opacity: 0.7,
+  },
+  syncButtonPermission: {
+    backgroundColor: '#FF9800',
+    shadowColor: '#FF9800',
+  },
+  syncButtonError: {
+    backgroundColor: '#FF5252',
+    shadowColor: '#FF5252',
   },
   syncButtonText: {
     color: '#001F27',

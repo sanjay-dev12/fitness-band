@@ -7,6 +7,7 @@ import {
   getFamilyApi,
   getFamilyMemberHealthApi,
 } from '../services/api';
+import { syncAllHealthData } from '../modules/health/health.service';
 
 const ProfileContext = createContext(null);
 
@@ -23,9 +24,19 @@ export const BASELINE_METRICS = {
   walkingGoal: 12,
   steps: 0,
   heartRate: null,
+  restingHeartRate: null,
   oxygen: null,
   sleepDuration: null,
-  bodyAge: null,
+  deepSleepMinutes: null,
+  lightSleepMinutes: null,
+  remSleepMinutes: null,
+  awakeSleepMinutes: null,
+  distance: null,
+  hrv: null,
+  stress: null,
+  workoutType: null,
+  workoutDuration: null,
+  source: null,
   statusText: 'Connected',
 };
 
@@ -116,6 +127,8 @@ export function ProfileProvider({ children }) {
     setModal((prev) => ({ ...prev, visible: false }));
   };
 
+  const [lastSyncedTime, setLastSyncedTime] = useState(null);
+
   /**
    * Fetch latest health telemetry for owner from backend
    */
@@ -124,6 +137,9 @@ export function ProfileProvider({ children }) {
       const res = await getLatestHealthApi();
       if (res?.success && res.data) {
         const d = res.data;
+        if (d.syncedAt || d.recordedAt) {
+          setLastSyncedTime(new Date(d.syncedAt || d.recordedAt));
+        }
         setProfiles((prev) =>
           prev.map((p) => {
             if (p.isPrimary) {
@@ -131,17 +147,27 @@ export function ProfileProvider({ children }) {
                 ...p,
                 battery: d.battery !== null && d.battery !== undefined ? d.battery : p.battery,
                 metrics: {
-                  calories: d.calories || 0,
+                  calories: d.calories !== null && d.calories !== undefined ? d.calories : 0,
                   caloriesGoal: 500,
-                  exerciseMins: d.exerciseMins || 0,
+                  exerciseMins: d.exerciseMins !== null && d.exerciseMins !== undefined ? d.exerciseMins : 0,
                   exerciseGoal: 30,
-                  walkingHours: d.walkingHours || 0,
+                  walkingHours: d.walkingHours !== null && d.walkingHours !== undefined ? d.walkingHours : 0,
                   walkingGoal: 12,
-                  steps: d.steps || 0,
+                  steps: d.steps !== null && d.steps !== undefined ? d.steps : 0,
                   heartRate: d.heartRate || null,
+                  restingHeartRate: d.restingHeartRate || null,
                   oxygen: d.oxygenLevel || null,
                   sleepDuration: d.sleepDuration || null,
-                  bodyAge: null,
+                  deepSleepMinutes: d.deepSleepMinutes || null,
+                  lightSleepMinutes: d.lightSleepMinutes || null,
+                  remSleepMinutes: d.remSleepMinutes || null,
+                  awakeSleepMinutes: d.awakeSleepMinutes || null,
+                  distance: d.distance || null,
+                  hrv: d.hrv || null,
+                  stress: d.stress || null,
+                  workoutType: d.workoutType || null,
+                  workoutDuration: d.workoutDuration || null,
+                  source: d.source || 'Health Connect',
                   statusText: d.statusText || 'Connected',
                 },
               };
@@ -227,6 +253,9 @@ export function ProfileProvider({ children }) {
       const res = await syncHealthDataApi(telemetryData);
       if (res?.success && res.data) {
         const d = res.data;
+        if (d.syncedAt || d.recordedAt) {
+          setLastSyncedTime(new Date(d.syncedAt || d.recordedAt));
+        }
         setProfiles((prev) =>
           prev.map((p) => {
             if (p.isPrimary) {
@@ -234,18 +263,28 @@ export function ProfileProvider({ children }) {
                 ...p,
                 battery: d.battery !== null && d.battery !== undefined ? d.battery : p.battery,
                 metrics: {
-                  calories: d.calories || 0,
+                  calories: d.calories !== null && d.calories !== undefined ? d.calories : 0,
                   caloriesGoal: 500,
-                  exerciseMins: d.exerciseMins || 0,
+                  exerciseMins: d.exerciseMins !== null && d.exerciseMins !== undefined ? d.exerciseMins : 0,
                   exerciseGoal: 30,
-                  walkingHours: d.walkingHours || 0,
+                  walkingHours: d.walkingHours !== null && d.walkingHours !== undefined ? d.walkingHours : 0,
                   walkingGoal: 12,
-                  steps: d.steps || 0,
+                  steps: d.steps !== null && d.steps !== undefined ? d.steps : 0,
                   heartRate: d.heartRate || null,
+                  restingHeartRate: d.restingHeartRate || null,
                   oxygen: d.oxygenLevel || null,
                   sleepDuration: d.sleepDuration || null,
-                  bodyAge: null,
-                  statusText: d.statusText || 'Connected',
+                  deepSleepMinutes: d.deepSleepMinutes || null,
+                  lightSleepMinutes: d.lightSleepMinutes || null,
+                  remSleepMinutes: d.remSleepMinutes || null,
+                  awakeSleepMinutes: d.awakeSleepMinutes || null,
+                  distance: d.distance || null,
+                  hrv: d.hrv || null,
+                  stress: d.stress || null,
+                  workoutType: d.workoutType || null,
+                  workoutDuration: d.workoutDuration || null,
+                  source: d.source || 'Health Connect',
+                  statusText: d.statusText || 'Synchronized',
                 },
               };
             }
@@ -257,6 +296,25 @@ export function ProfileProvider({ children }) {
       return { success: false };
     } catch (e) {
       throw e;
+    }
+  };
+
+  /**
+   * Orchestrate full real synchronization from device/Health Connect
+   */
+  const syncHealthData = async () => {
+    try {
+      const res = await syncAllHealthData();
+      if (res?.success) {
+        if (res.lastSynced) {
+          setLastSyncedTime(new Date(res.lastSynced));
+        }
+        await refreshHealthData();
+      }
+      return res;
+    } catch (err) {
+      console.warn('[ProfileContext] syncHealthData error:', err);
+      return { success: false, error: err.message };
     }
   };
 
@@ -338,6 +396,8 @@ export function ProfileProvider({ children }) {
         refreshHealthData,
         refreshFamily,
         syncHealthTelemetry,
+        syncHealthData,
+        lastSyncedTime,
         toast,
         showToast,
         hideToast,

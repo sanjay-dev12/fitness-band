@@ -13,6 +13,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import FamilySetupScreen from '../screens/FamilySetupScreen';
+import HealthDashboardScreen from '../modules/health/screens/HealthDashboardScreen';
 import { ProfileProvider } from '../context/ProfileContext';
 import Toast from '../components/Toast';
 import CustomModal from '../components/CustomModal';
@@ -112,6 +113,7 @@ export default function AppNavigator() {
           <Stack.Screen name="Register" component={RegisterScreen} />
           <Stack.Screen name="FamilySetup" component={FamilySetupScreen} />
           <Stack.Screen name="MainTabs" component={MainTabs} />
+          <Stack.Screen name="HealthDashboard" component={HealthDashboardScreen} />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />

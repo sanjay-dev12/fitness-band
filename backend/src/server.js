@@ -52,20 +52,40 @@ app.use("/api/health", healthRoutes);
 // Global Error Handler
 app.use(errorHandler);
 
+const HOST = process.env.HOST || "0.0.0.0";
+
 // Start Server
 const startServer = async () => {
     try {
         await connectDatabase();
         await syncDatabase();
 
-        app.listen(PORT, () => {
-            console.log(`✓ Hand Band API running on port ${PORT}`);
-            console.log(`✓ http://localhost:${PORT}`);
+        const server = app.listen(PORT, HOST, () => {
+            console.log(`✓ Hand Band API running on ${HOST}:${PORT}`);
+            console.log(`✓ Local:   http://localhost:${PORT}`);
+            console.log(`✓ Network: http://${HOST === "0.0.0.0" ? "192.168.87.200" : HOST}:${PORT}`);
+        });
+
+        server.on("error", (error) => {
+            if (error.code === "EADDRINUSE") {
+                console.error(`✗ Port ${PORT} is already in use by another process.`);
+                console.error(`  Please terminate the conflicting process or change PORT in .env`);
+            } else {
+                console.error("✗ Server error:", error.message);
+            }
         });
     } catch (error) {
         console.error("✗ Server startup failed:", error.message);
         process.exit(1);
     }
 };
+
+process.on("unhandledRejection", (reason) => {
+    console.error("✗ Unhandled Rejection:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+    console.error("✗ Uncaught Exception:", error);
+});
 
 startServer();

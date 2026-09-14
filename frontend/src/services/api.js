@@ -58,22 +58,25 @@ export function getStoredUser() {
   return null;
 }
 
-// Dynamically determine the backend server IP address
+// Dynamically determine the backend server IP address for both Mobile and PC
 const getBaseUrl = () => {
+  // 1. PC Web browser
   if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' && window.location?.hostname) {
+      return `http://${window.location.hostname}:5000/api`;
+    }
     return 'http://localhost:5000/api';
   }
 
-  // Extract host IP from Expo Metro bundler
+  // 2. Mobile Phone (Expo): Auto-detect PC IP from Metro bundler host
   const hostUri = Constants.expoConfig?.hostUri || Constants.manifest?.debuggerHost || '';
-  const ip = hostUri.split(':')[0];
-
-  if (ip) {
-    return `http://${ip}:5000/api`;
+  const metroIp = hostUri ? hostUri.split(':')[0] : null;
+  if (metroIp && metroIp !== 'localhost' && metroIp !== '127.0.0.1') {
+    return `http://${metroIp}:5000/api`;
   }
 
-  // Fallback to local machine IP
-  return 'http://10.72.97.243:5000/api';
+  // 3. Current PC Wi-Fi IP fallback (accessible by both Phone and PC)
+  return 'http://192.168.87.200:5000/api';
 };
 
 export const API_BASE_URL = getBaseUrl();

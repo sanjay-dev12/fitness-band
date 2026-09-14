@@ -15,16 +15,34 @@ import {
   Target,
   Award,
   Zap,
+  Compass,
+  Shield,
 } from 'lucide-react-native';
 import ProfileSwitcher from '../components/ProfileSwitcher';
 import { useProfile } from '../context/ProfileContext';
 
 export default function HomeScreen({ navigation }) {
-  const { activeProfile, refreshHealthData, refreshFamily } = useProfile();
+  const { activeProfile, refreshHealthData, refreshFamily, syncHealthData, lastSyncedTime } = useProfile();
   const [refreshing, setRefreshing] = useState(false);
+
+  const formatLastSynced = (date) => {
+    if (!date) return 'Connected';
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 'Connected';
+    const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    const isToday = d.toDateString() === new Date().toDateString();
+    return isToday ? `Synced at ${timeStr}` : `Synced ${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}`;
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
+    try {
+      if (syncHealthData) {
+        await syncHealthData();
+      }
+    } catch (e) {
+      console.warn('Sync on refresh error:', e);
+    }
     await Promise.all([refreshHealthData?.(), refreshFamily?.()]);
     setRefreshing(false);
   };
@@ -79,7 +97,11 @@ export default function HomeScreen({ navigation }) {
               </Text>
               <View style={styles.batteryChip}>
                 <Battery color="#8FAAB2" size={12} style={{ marginRight: 3 }} />
-                <Text style={styles.batteryText}>{activeProfile.battery || 92}%</Text>
+                <Text style={styles.batteryText}>
+                  {activeProfile.battery !== null && activeProfile.battery !== undefined
+                    ? `${activeProfile.battery}%`
+                    : '--'}
+                </Text>
               </View>
             </View>
             <View style={styles.statusRow}>
@@ -132,7 +154,7 @@ export default function HomeScreen({ navigation }) {
               </Text>
               <View style={styles.liveStatusSubRow}>
                 <Watch color="#00BFA5" size={13} style={{ marginRight: 4 }} />
-                <Text style={styles.liveStatusSubtitle}>Band connected</Text>
+                <Text style={styles.liveStatusSubtitle}>{formatLastSynced(lastSyncedTime)}</Text>
               </View>
             </View>
           </View>
@@ -380,7 +402,11 @@ export default function HomeScreen({ navigation }) {
 
           <View style={styles.insightsGrid}>
             {/* Insight 1: Heart Rate */}
-            <View style={styles.insightCard}>
+            <TouchableOpacity
+              style={styles.insightCard}
+              activeOpacity={0.8}
+              onPress={() => navigation?.navigate('HealthDashboard')}
+            >
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(255, 82, 82, 0.12)' }]}>
                   <Heart color="#FF5252" size={16} />
@@ -404,7 +430,7 @@ export default function HomeScreen({ navigation }) {
                 <View style={[styles.waveLine, { height: 10 }]} />
                 <View style={[styles.waveLine, { height: 6 }]} />
               </View>
-            </View>
+            </TouchableOpacity>
 
             {/* Insight 2: Sleep */}
             <View style={styles.insightCard}>
@@ -465,6 +491,50 @@ export default function HomeScreen({ navigation }) {
               </View>
               <Text style={styles.insightNote}>
                 {m.oxygen ? 'Healthy saturation' : 'Sync to record SpO2'}
+              </Text>
+            </View>
+
+            {/* Insight 5: HRV Recovery */}
+            <View style={styles.insightCard}>
+              <View style={styles.insightHeaderRow}>
+                <View style={[styles.insightIconBox, { backgroundColor: 'rgba(0, 230, 118, 0.12)' }]}>
+                  <Zap color="#00E676" size={16} />
+                </View>
+                <View style={[styles.insightStatusTag, { backgroundColor: 'rgba(0, 230, 118, 0.14)' }]}>
+                  <Text style={[styles.insightStatusTagText, { color: '#00E676' }]}>
+                    {m.hrv ? 'Recovery' : 'Standby'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.insightName}>Heart Rate Var</Text>
+              <View style={styles.insightValueRow}>
+                <Text style={styles.insightMainVal}>{m.hrv ? m.hrv : '--'}</Text>
+                <Text style={styles.insightValUnit}>ms</Text>
+              </View>
+              <Text style={styles.insightNote}>
+                {m.hrv ? 'Pebble RMSSD score' : 'Sync to record HRV'}
+              </Text>
+            </View>
+
+            {/* Insight 6: Distance */}
+            <View style={styles.insightCard}>
+              <View style={styles.insightHeaderRow}>
+                <View style={[styles.insightIconBox, { backgroundColor: 'rgba(255, 167, 38, 0.12)' }]}>
+                  <Compass color="#FFA726" size={16} />
+                </View>
+                <View style={[styles.insightStatusTag, { backgroundColor: 'rgba(255, 167, 38, 0.14)' }]}>
+                  <Text style={[styles.insightStatusTagText, { color: '#FFA726' }]}>
+                    {m.distance ? 'Tracked' : 'Standby'}
+                  </Text>
+                </View>
+              </View>
+              <Text style={styles.insightName}>Distance</Text>
+              <View style={styles.insightValueRow}>
+                <Text style={styles.insightMainVal}>{m.distance !== null && m.distance !== undefined ? m.distance : '--'}</Text>
+                <Text style={styles.insightValUnit}>km</Text>
+              </View>
+              <Text style={styles.insightNote}>
+                {m.distance ? 'Pebble activity distance' : 'Sync to record distance'}
               </Text>
             </View>
           </View>

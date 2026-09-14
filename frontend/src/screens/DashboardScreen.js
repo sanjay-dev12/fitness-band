@@ -5,34 +5,36 @@ import HealthRing from '../components/HealthRing';
 import { useProfile } from '../context/ProfileContext';
 
 export default function DashboardScreen() {
-  const { activeProfile } = useProfile();
+  const { activeProfile, refreshHealthData, syncHealthData } = useProfile();
   const [refreshing, setRefreshing] = useState(false);
-  const [healthData, setHealthData] = useState({
-    heartRate: 72,
-    oxygenLevel: 98,
-    steps: 6430,
-    goal: 10000,
-  });
 
-  const onRefresh = React.useCallback(() => {
+  const m = activeProfile?.metrics || {};
+
+  const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
-    // Simulate fetching new data
-    setTimeout(() => {
-      setHealthData({
-        heartRate: Math.floor(Math.random() * (100 - 60 + 1) + 60),
-        oxygenLevel: Math.floor(Math.random() * (100 - 95 + 1) + 95),
-        steps: Math.floor(Math.random() * (10000 - 5000 + 1) + 5000),
-        goal: 10000,
-      });
+    try {
+      if (syncHealthData) {
+        await syncHealthData();
+      } else if (refreshHealthData) {
+        await refreshHealthData();
+      }
+    } catch (e) {
+      console.warn('Refresh error:', e);
+    } finally {
       setRefreshing(false);
-    }, 1500);
-  }, []);
+    }
+  }, [syncHealthData, refreshHealthData]);
+
+  const stepGoal = 10000;
+  const hrVal = m.heartRate;
+  const oxVal = m.oxygen;
+  const stepsVal = m.steps || 0;
 
   return (
     <ScrollView 
       style={styles.container}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FF4B4B" />
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00BFA5" />
       }
     >
       <View style={styles.header}>
@@ -45,12 +47,12 @@ export default function DashboardScreen() {
           radius={110} 
           strokeWidth={18} 
           color="#FF4B4B" 
-          percentage={(healthData.heartRate / 180) * 100}
+          percentage={hrVal ? Math.min(100, (hrVal / 180) * 100) : 0}
           icon={<Activity color="#FF4B4B" size={32} />}
           label="Heart Rate"
-          value={healthData.heartRate}
+          value={hrVal ? hrVal : '--'}
           unit="BPM"
-          pulse={true}
+          pulse={!!hrVal}
         />
       </View>
 
@@ -59,27 +61,31 @@ export default function DashboardScreen() {
           radius={70} 
           strokeWidth={12} 
           color="#00D8FF" 
-          percentage={healthData.oxygenLevel}
+          percentage={oxVal ? oxVal : 0}
           icon={<Droplet color="#00D8FF" size={24} />}
           label="SpO2 Level"
-          value={healthData.oxygenLevel}
+          value={oxVal ? oxVal : '--'}
           unit="%"
         />
         <HealthRing 
           radius={70} 
           strokeWidth={12} 
           color="#00FF87" 
-          percentage={(healthData.steps / healthData.goal) * 100}
+          percentage={Math.min(100, (stepsVal / stepGoal) * 100)}
           icon={<Footprints color="#00FF87" size={24} />}
           label="Steps"
-          value={healthData.steps}
+          value={stepsVal > 0 ? stepsVal.toLocaleString() : '0'}
           unit="/ 10k"
         />
       </View>
       
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Daily Summary</Text>
-        <Text style={styles.cardText}>You are doing great today! Your heart rate is stable and you've hit 64% of your daily step goal.</Text>
+        <Text style={styles.cardText}>
+          {hrVal || stepsVal > 0
+            ? `Synchronized telemetry from ${m.source || 'connected wearable'}. Steps: ${stepsVal.toLocaleString()} (${Math.round((stepsVal / stepGoal) * 100)}% of goal).`
+            : 'No health records synchronized yet today. Pull to refresh or tap Sync Health Data in Devices.'}
+        </Text>
       </View>
     </ScrollView>
   );

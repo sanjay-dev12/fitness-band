@@ -1,4 +1,4 @@
-import { saveHealthData, getHealthHistory, getLatestHealth } from './health.repository.js';
+import { saveHealthData, getHealthHistory, getLatestHealth, getHealthSummary } from './health.repository.js';
 import { findConnection } from '../family/family.repository.js';
 
 export const syncHealth = async (userId, healthData) => {
@@ -11,6 +11,10 @@ export const getMyHealth = async (userId, days) => {
 
 export const getMyLatestHealth = async (userId) => {
     return await getLatestHealth(userId);
+};
+
+export const getMyHealthSummary = async (userId, days) => {
+    return await getHealthSummary(userId, days);
 };
 
 export const getFamilyMemberHealth = async (currentUserId, memberId) => {

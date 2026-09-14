@@ -48,6 +48,72 @@ const HealthData = sequelize.define('HealthData', {
         type: DataTypes.STRING,
         allowNull: true,
     },
+    deepSleepMinutes: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    lightSleepMinutes: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    remSleepMinutes: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    awakeSleepMinutes: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    sleepStartTime: {
+        type: DataTypes.DATE,
+        allowNull: true,
+    },
+    sleepEndTime: {
+        type: DataTypes.DATE,
+        allowNull: true,
+    },
+    distance: {
+        type: DataTypes.FLOAT,
+        allowNull: true,
+    },
+    hrv: {
+        type: DataTypes.FLOAT,
+        allowNull: true,
+    },
+    restingHeartRate: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    stress: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    workoutType: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    workoutDuration: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+    },
+    source: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        defaultValue: 'Health Connect',
+    },
+    sourceRecordId: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
+    syncedAt: {
+        type: DataTypes.DATE,
+        allowNull: true,
+        defaultValue: DataTypes.NOW,
+    },
+    rawSamples: {
+        type: DataTypes.JSON,
+        allowNull: true,
+    },
     statusText: {
         type: DataTypes.STRING,
         allowNull: true,
