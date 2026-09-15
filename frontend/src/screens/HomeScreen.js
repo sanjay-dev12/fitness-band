@@ -17,6 +17,7 @@ import {
   Zap,
   Compass,
   Shield,
+  RefreshCw,
 } from 'lucide-react-native';
 import ProfileSwitcher from '../components/ProfileSwitcher';
 import { useProfile } from '../context/ProfileContext';
@@ -111,13 +112,24 @@ export default function HomeScreen({ navigation }) {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.chatButton}
-          onPress={() => navigation?.navigate('FamilySetup')}
-          activeOpacity={0.8}
-        >
-          <MessageSquare color="#FFFFFF" size={18} />
-        </TouchableOpacity>
+        <View style={styles.headerRightRow}>
+          <TouchableOpacity
+            style={styles.headerSyncButton}
+            onPress={onRefresh}
+            disabled={refreshing}
+            activeOpacity={0.75}
+          >
+            <RefreshCw color="#00BFA5" size={16} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.chatButton}
+            onPress={() => navigation?.navigate('FamilySetup')}
+            activeOpacity={0.8}
+          >
+            <MessageSquare color="#FFFFFF" size={18} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* 3. Family Profiles Section */}
@@ -142,7 +154,11 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* 4. Live Status Card */}
-        <View style={styles.liveStatusCard}>
+        <TouchableOpacity
+          style={styles.liveStatusCard}
+          onPress={() => navigation?.navigate('HealthDashboard')}
+          activeOpacity={0.85}
+        >
           <View style={styles.liveStatusLeft}>
             <View style={styles.livePulseDotContainer}>
               <View style={styles.livePulseOuter} />
@@ -154,7 +170,7 @@ export default function HomeScreen({ navigation }) {
               </Text>
               <View style={styles.liveStatusSubRow}>
                 <Watch color="#00BFA5" size={13} style={{ marginRight: 4 }} />
-                <Text style={styles.liveStatusSubtitle}>{formatLastSynced(lastSyncedTime)}</Text>
+                <Text style={styles.liveStatusSubtitle}>{formatLastSynced(lastSyncedTime)} • Synced</Text>
               </View>
             </View>
           </View>
@@ -162,7 +178,7 @@ export default function HomeScreen({ navigation }) {
             <Zap color="#00E676" size={12} style={{ marginRight: 4 }} />
             <Text style={styles.liveBadgeText}>Live Status</Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* 5. Main Health Summary Card ("Today's Activity") */}
         <View style={styles.sectionCard}>
@@ -623,6 +639,21 @@ const styles = StyleSheet.create({
     color: '#00E676',
     fontSize: 11,
     fontWeight: '600',
+  },
+  headerRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerSyncButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#001F27',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 191, 165, 0.35)',
   },
   chatButton: {
     width: 36,

@@ -21,6 +21,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   AlertCircle,
+  Activity,
+  Heart,
+  ArrowRight,
 } from 'lucide-react-native';
 import { useProfile } from '../context/ProfileContext';
 import {
@@ -42,6 +45,7 @@ export default function DeviceScreen({ navigation }) {
 
   const [isDeviceBound, setIsDeviceBound] = useState(true);
   const [syncStatus, setSyncStatus] = useState('ready'); // 'ready' | 'syncing' | 'success' | 'permission_required' | 'error'
+  const isSyncing = syncStatus === 'syncing';
 
   const batteryLevel = activeProfile?.battery || 98;
 
@@ -132,10 +136,10 @@ export default function DeviceScreen({ navigation }) {
   const handleAddDevicePress = () => {
     if (!isDeviceBound) {
       setIsDeviceBound(true);
-      setLastSyncedText('Just now');
       if (showToast) {
         showToast('Band connected successfully via Bluetooth', 'success');
       }
+      handleSyncNow();
     } else if (navigation) {
       navigation.navigate('FamilySetup');
     }
@@ -295,6 +299,57 @@ export default function DeviceScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
+            {/* Connected Health Integration Card */}
+            <View style={styles.connectedHealthCard}>
+              <View style={styles.connectedHealthHeader}>
+                <View style={styles.connectedHealthLeft}>
+                  <View style={styles.connectedHealthIconBox}>
+                    <Activity color="#00BFA5" size={20} />
+                  </View>
+                  <View>
+                    <Text style={styles.connectedHealthTitle}>Connected Health</Text>
+                    <Text style={styles.connectedHealthSub}>Google Health Connect • Active</Text>
+                  </View>
+                </View>
+                <View style={styles.connectedHealthBadge}>
+                  <ShieldCheck color="#00E676" size={13} style={{ marginRight: 4 }} />
+                  <Text style={styles.connectedHealthBadgeText}>Synced</Text>
+                </View>
+              </View>
+
+              <Text style={styles.connectedHealthDesc}>
+                Biometric telemetry (Heart Rate, Steps, Active Calories & Sleep) is linked with your profile.
+              </Text>
+
+              <View style={styles.connectedHealthButtonsRow}>
+                <TouchableOpacity
+                  style={styles.openDashboardButton}
+                  onPress={() => navigation?.navigate('HealthDashboard')}
+                  activeOpacity={0.8}
+                >
+                  <Heart color="#00BFA5" size={16} style={{ marginRight: 6 }} />
+                  <Text style={styles.openDashboardButtonText}>View Health Telemetry</Text>
+                  <ChevronRight color="#00BFA5" size={16} style={{ marginLeft: 2 }} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.quickSyncSmallButton, isSyncing && { opacity: 0.6 }]}
+                  onPress={handleSyncNow}
+                  disabled={isSyncing}
+                  activeOpacity={0.8}
+                >
+                  {isSyncing ? (
+                    <ActivityIndicator size="small" color="#001F27" />
+                  ) : (
+                    <>
+                      <RefreshCw color="#001F27" size={14} style={{ marginRight: 5 }} />
+                      <Text style={styles.quickSyncSmallButtonText}>Sync Now</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* 9. Device Information */}
             <View style={styles.sectionCard}>
               <Text style={styles.sectionCardTitle}>Device Information</Text>
@@ -321,6 +376,23 @@ export default function DeviceScreen({ navigation }) {
             {/* 10. Device Management Actions */}
             <View style={styles.sectionCard}>
               <Text style={styles.sectionCardTitle}>Device Management</Text>
+
+              <TouchableOpacity
+                style={styles.actionRow}
+                onPress={() => navigation?.navigate('HealthDashboard')}
+                activeOpacity={0.7}
+              >
+                <View style={styles.actionRowLeft}>
+                  <View style={[styles.actionIconBox, { backgroundColor: 'rgba(0, 191, 165, 0.12)' }]}>
+                    <Activity color="#00BFA5" size={18} />
+                  </View>
+                  <View>
+                    <Text style={styles.actionTitle}>Connected Health Dashboard</Text>
+                    <Text style={styles.actionSubtitle}>Health Connect telemetry & sensor charts</Text>
+                  </View>
+                </View>
+                <ChevronRight color="#8FAAB2" size={18} />
+              </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.actionRow}
@@ -885,5 +957,103 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: '#6A8791',
     textAlign: 'center',
+  },
+
+  // Connected Health Card
+  connectedHealthCard: {
+    backgroundColor: '#002B36',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 191, 165, 0.25)',
+  },
+  connectedHealthHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  connectedHealthLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  connectedHealthIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 191, 165, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 191, 165, 0.3)',
+  },
+  connectedHealthTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  connectedHealthSub: {
+    color: '#8FAAB2',
+    fontSize: 11,
+    marginTop: 1,
+  },
+  connectedHealthBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 230, 118, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: 'rgba(0, 230, 118, 0.3)',
+  },
+  connectedHealthBadgeText: {
+    color: '#00E676',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  connectedHealthDesc: {
+    color: '#8FAAB2',
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 14,
+  },
+  connectedHealthButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  openDashboardButton: {
+    flex: 1,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 191, 165, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 191, 165, 0.3)',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  openDashboardButtonText: {
+    color: '#00BFA5',
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  quickSyncSmallButton: {
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#00BFA5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  quickSyncSmallButtonText: {
+    color: '#001F27',
+    fontSize: 12.5,
+    fontWeight: '700',
   },
 });

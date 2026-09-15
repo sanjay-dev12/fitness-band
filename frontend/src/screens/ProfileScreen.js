@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import {
   User,
@@ -23,15 +24,57 @@ import {
   Bell,
   Info,
   Pencil,
+  Activity,
+  Heart,
+  RefreshCw,
 } from 'lucide-react-native';
 import { useProfile } from '../context/ProfileContext';
 import { getStoredUser, setAuthToken, setStoredUser, getMeApi, updateProfileApi } from '../services/api';
 
 export default function ProfileScreen({ navigation }) {
-  const { profiles, showToast, showModal } = useProfile();
+  const { profiles, showToast, showModal, syncHealthData, lastSyncedTime } = useProfile();
 
   const storedUser = getStoredUser();
   const [currentUser, setCurrentUser] = useState(storedUser);
+  const [syncing, setSyncing] = useState(false);
+
+  const formatLastSynced = (date) => {
+    if (!date) return 'Not synced yet';
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 'Not synced yet';
+    const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+    const isToday = d.toDateString() === new Date().toDateString();
+    return isToday ? `Today, ${timeStr}` : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timeStr}`;
+  };
+
+  const handleSyncHealth = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      if (syncHealthData) {
+        const res = await syncHealthData();
+        if (res?.success) {
+          if (showToast) {
+            showToast('Health data synchronized successfully', 'success');
+          }
+        } else if (res?.permissionRequired) {
+          if (showToast) {
+            showToast('Health data permission required', 'error');
+          }
+        } else {
+          if (showToast) {
+            showToast(res?.error || 'Unable to sync health data', 'error');
+          }
+        }
+      }
+    } catch (e) {
+      if (showToast) {
+        showToast(e.message || 'Unable to sync health data', 'error');
+      }
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   useEffect(() => {
     getMeApi().then((res) => {
@@ -272,6 +315,66 @@ export default function ProfileScreen({ navigation }) {
             </View>
             <ChevronRight color="#8FAAB2" size={18} />
           </TouchableOpacity>
+        </View>
+
+        {/* Connected Health & Device Sync Section */}
+        <View style={styles.sectionCard}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={styles.sectionTitle}>Connected Health & Telemetry</Text>
+            <View style={styles.healthStatusPill}>
+              <View style={styles.greenStatusDotSmall} />
+              <Text style={styles.healthStatusPillText}>Health Connect Active</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.connectedHealthTile}
+            onPress={() => navigation?.navigate('HealthDashboard')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.connectedHealthTileLeft}>
+              <View style={styles.connectedHealthTileIconBox}>
+                <Activity color="#00BFA5" size={22} />
+              </View>
+              <View style={styles.connectedHealthTileTextCol}>
+                <Text style={styles.connectedHealthTileTitle}>Health Connect Integration</Text>
+                <Text style={styles.connectedHealthTileSub}>
+                  {formatLastSynced(lastSyncedTime)} • Vitals Synced
+                </Text>
+              </View>
+            </View>
+            <ChevronRight color="#8FAAB2" size={18} />
+          </TouchableOpacity>
+
+          <View style={styles.healthActionButtonsRow}>
+            <TouchableOpacity
+              style={styles.openTelemetryButton}
+              onPress={() => navigation?.navigate('HealthDashboard')}
+              activeOpacity={0.8}
+            >
+              <Heart color="#00BFA5" size={15} style={{ marginRight: 6 }} />
+              <Text style={styles.openTelemetryButtonText}>View Vitals</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.syncDeviceButton, syncing && { opacity: 0.7 }]}
+              onPress={handleSyncHealth}
+              disabled={syncing}
+              activeOpacity={0.8}
+            >
+              {syncing ? (
+                <>
+                  <ActivityIndicator size="small" color="#001F27" style={{ marginRight: 6 }} />
+                  <Text style={styles.syncDeviceButtonText}>Syncing...</Text>
+                </>
+              ) : (
+                <>
+                  <RefreshCw color="#001F27" size={15} style={{ marginRight: 6 }} />
+                  <Text style={styles.syncDeviceButtonText}>Sync Device</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* 9. Account Settings */}
@@ -719,5 +822,115 @@ const styles = StyleSheet.create({
     color: '#FF4B4B',
     fontSize: 15,
     fontWeight: '700',
+  },
+
+  // Connected Health Section
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  healthStatusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 230, 118, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: 'rgba(0, 230, 118, 0.3)',
+  },
+  greenStatusDotSmall: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#00E676',
+    marginRight: 5,
+  },
+  healthStatusPillText: {
+    color: '#00E676',
+    fontSize: 10.5,
+    fontWeight: '700',
+  },
+  connectedHealthTile: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#00222B',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 191, 165, 0.2)',
+    marginBottom: 12,
+  },
+  connectedHealthTileLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  connectedHealthTileIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 191, 165, 0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 191, 165, 0.3)',
+  },
+  connectedHealthTileTextCol: {
+    flex: 1,
+  },
+  connectedHealthTileTitle: {
+    color: '#FFFFFF',
+    fontSize: 14.5,
+    fontWeight: '700',
+    marginBottom: 3,
+  },
+  connectedHealthTileSub: {
+    color: '#8FAAB2',
+    fontSize: 11.5,
+  },
+  healthActionButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  openTelemetryButton: {
+    flex: 1,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 191, 165, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 191, 165, 0.3)',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  openTelemetryButtonText: {
+    color: '#00BFA5',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  syncDeviceButton: {
+    flex: 1,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#00BFA5',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#00BFA5',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  syncDeviceButtonText: {
+    color: '#001F27',
+    fontSize: 13,
+    fontWeight: '800',
   },
 });

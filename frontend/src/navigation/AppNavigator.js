@@ -107,6 +107,7 @@ export default function AppNavigator() {
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: '#001F27' },
+            animation: 'slide_from_right',
           }}
         >
           <Stack.Screen name="Login" component={LoginScreen} />

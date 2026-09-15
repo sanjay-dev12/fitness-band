@@ -244,17 +244,19 @@ export default function HealthDashboardScreen({ navigation }) {
       <View style={styles.container}>
         {/* Navigation Bar */}
         <View style={styles.navBar}>
-          {navigation?.canGoBack?.() ? (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.7}
-            >
-              <ArrowLeft color="#FFFFFF" size={22} />
-            </TouchableOpacity>
-          ) : (
-            <View style={{ width: 22 }} />
-          )}
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              if (navigation?.canGoBack?.()) {
+                navigation.goBack();
+              } else {
+                navigation?.navigate('MainTabs');
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <ArrowLeft color="#FFFFFF" size={22} />
+          </TouchableOpacity>
 
           <Text style={styles.navTitle}>Health Telemetry</Text>
 
