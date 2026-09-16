@@ -7,7 +7,12 @@ import {
   getFamilyApi,
   getFamilyMemberHealthApi,
 } from '../services/api';
-import { syncAllHealthData } from '../modules/health/health.service';
+import {
+  syncAllHealthData,
+  readHealthData,
+  setupHealthConnect,
+  checkGrantedPermissionsOnly,
+} from '../modules/health/health.service';
 
 const ProfileContext = createContext(null);
 
@@ -128,6 +133,20 @@ export function ProfileProvider({ children }) {
   };
 
   const [lastSyncedTime, setLastSyncedTime] = useState(null);
+
+  // Health Connect local device state
+  const [healthMetrics, setHealthMetrics] = useState({
+    heartRate: null,
+    steps: 0,
+    calories: 0,
+    distance: null,
+    sleepMinutes: null,
+    oxygenLevel: null,
+    lastSynced: null,
+    source: null,
+  });
+  const [healthStatus, setHealthStatus] = useState('idle'); // 'idle' | 'loading' | 'ready' | 'error' | 'permission_required'
+  const [healthError, setHealthError] = useState(null);
 
   /**
    * Fetch latest health telemetry for owner from backend
@@ -300,6 +319,125 @@ export function ProfileProvider({ children }) {
   };
 
   /**
+   * Fetch on-device health data directly from Health Connect without duplicating fetch logic.
+   * Safe execution: catches errors internally and resolves cleanly without throwing.
+   */
+  const refreshDeviceHealth = useCallback(async () => {
+    if (Platform.OS !== 'android') {
+      setHealthStatus('idle');
+      return { success: false, reason: 'Health Connect is Android only' };
+    }
+
+    setHealthStatus('loading');
+    setHealthError(null);
+
+    try {
+      // 1. Non-intrusive check: verify granted permissions without triggering dialog
+      let perms = await checkGrantedPermissionsOnly();
+
+      // If permissions not yet granted, attempt setupHealthConnect (which can prompt)
+      if (!perms.ok || !perms.hasHeartRate) {
+        const setup = await setupHealthConnect();
+        if (!setup.ok) {
+          setHealthStatus('permission_required');
+          setHealthError(setup.reason || 'Health permissions required');
+          return { success: false, status: 'permission_required' };
+        }
+      }
+
+      // 2. Read live on-device records from Health Connect
+      const result = await readHealthData();
+      const raw = result?.data || {};
+
+      const stepsList = raw.steps || [];
+      const totalSteps = stepsList.reduce((sum, r) => sum + (r.count || 0), 0);
+
+      const caloriesList = raw.totalCalories || [];
+      const totalCal = caloriesList.reduce(
+        (sum, r) => sum + (r.energy?.inKilocalories || r.energy?.value || 0),
+        0
+      );
+
+      const distList = raw.distance || [];
+      const totalDistMeters = distList.reduce(
+        (sum, r) => sum + (r.distance?.inMeters || r.distance?.value || 0),
+        0
+      );
+      const distanceKm =
+        totalDistMeters > 0 ? Math.round((totalDistMeters / 1000) * 100) / 100 : null;
+
+      // Extract latest heart rate from records or samples
+      const hrList = raw.heartRate || [];
+      const allHrSamples = [];
+      for (const record of hrList) {
+        if (Array.isArray(record.samples)) {
+          for (const sample of record.samples) {
+            if (sample && typeof sample.beatsPerMinute === 'number') {
+              allHrSamples.push({
+                bpm: Math.round(sample.beatsPerMinute),
+                time: sample.time || record.startTime || record.endTime,
+              });
+            }
+          }
+        } else if (typeof record.beatsPerMinute === 'number') {
+          allHrSamples.push({
+            bpm: Math.round(record.beatsPerMinute),
+            time: record.startTime || record.endTime,
+          });
+        }
+      }
+      allHrSamples.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+      const latestHr = allHrSamples.length > 0 ? allHrSamples[allHrSamples.length - 1].bpm : null;
+
+      // Compute sleep minutes from SleepSession records
+      const sleepList = raw.sleep || [];
+      const totalSleepMins = sleepList.reduce((total, s) => {
+        if (s.startTime && s.endTime) {
+          const start = new Date(s.startTime).getTime();
+          const end = new Date(s.endTime).getTime();
+          const diff = Math.max(0, Math.round((end - start) / (1000 * 60)));
+          return total + diff;
+        }
+        return total;
+      }, 0);
+
+      // Extract latest blood oxygen (SpO2)
+      const oxygenList = raw.oxygenSaturation || [];
+      let latestOxygen = null;
+      if (oxygenList.length > 0) {
+        const lastOx = oxygenList[oxygenList.length - 1];
+        if (typeof lastOx.percentage === 'number') {
+          latestOxygen = Math.round(lastOx.percentage);
+        }
+      }
+
+      const syncDate = new Date();
+      const mapped = {
+        heartRate: latestHr,
+        steps: totalSteps,
+        calories: Math.round(totalCal),
+        distance: distanceKm,
+        sleepMinutes: totalSleepMins > 0 ? totalSleepMins : null,
+        oxygenLevel: latestOxygen,
+        lastSynced: syncDate,
+        source: 'Pebble via Health Connect',
+      };
+
+      setHealthMetrics(mapped);
+      setHealthStatus('ready');
+      setHealthError(null);
+      setLastSyncedTime(syncDate);
+
+      return { success: true, metrics: mapped };
+    } catch (err) {
+      console.warn('[ProfileContext] refreshDeviceHealth error:', err);
+      setHealthStatus('error');
+      setHealthError(err?.message || 'Failed to read device health');
+      return { success: false, error: err?.message };
+    }
+  }, []);
+
+  /**
    * Orchestrate full real synchronization from device/Health Connect
    */
   const syncHealthData = async () => {
@@ -318,11 +456,14 @@ export function ProfileProvider({ children }) {
     }
   };
 
-  // Initial load of real backend health data and family connections
+  // Initial load of real backend health data, family connections, and device health
   useEffect(() => {
     refreshHealthData();
     refreshFamily();
-  }, [refreshHealthData, refreshFamily]);
+    if (Platform.OS === 'android') {
+      refreshDeviceHealth();
+    }
+  }, [refreshHealthData, refreshFamily, refreshDeviceHealth]);
 
   // Sync profiles to localStorage on Web
   useEffect(() => {
@@ -394,6 +535,10 @@ export function ProfileProvider({ children }) {
         switchProfile,
         addFamilyMemberProfile,
         refreshHealthData,
+        refreshDeviceHealth,
+        healthMetrics,
+        healthStatus,
+        healthError,
         refreshFamily,
         syncHealthTelemetry,
         syncHealthData,
@@ -418,3 +563,4 @@ export function useProfile() {
   }
   return context;
 }
+

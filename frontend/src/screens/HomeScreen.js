@@ -23,7 +23,16 @@ import ProfileSwitcher from '../components/ProfileSwitcher';
 import { useProfile } from '../context/ProfileContext';
 
 export default function HomeScreen({ navigation }) {
-  const { activeProfile, refreshHealthData, refreshFamily, syncHealthData, lastSyncedTime } = useProfile();
+  const {
+    activeProfile,
+    refreshHealthData,
+    refreshDeviceHealth,
+    healthMetrics,
+    healthStatus,
+    refreshFamily,
+    syncHealthData,
+    lastSyncedTime,
+  } = useProfile();
   const [refreshing, setRefreshing] = useState(false);
 
   const formatLastSynced = (date) => {
@@ -44,24 +53,92 @@ export default function HomeScreen({ navigation }) {
     } catch (e) {
       console.warn('Sync on refresh error:', e);
     }
-    await Promise.all([refreshHealthData?.(), refreshFamily?.()]);
+    await Promise.all([
+      refreshDeviceHealth?.(),
+      refreshHealthData?.(),
+      refreshFamily?.(),
+    ]);
     setRefreshing(false);
   };
 
+  const isOwner = activeProfile?.isPrimary !== false;
   const m = activeProfile?.metrics || {};
 
+  // Integrated values: prioritize live device Health Connect metrics for owner
+  const calValue = (isOwner && healthMetrics?.calories !== undefined && healthMetrics?.calories !== null)
+    ? healthMetrics.calories
+    : (m.calories || 0);
+  const stepsValue = (isOwner && healthMetrics?.steps !== undefined && healthMetrics?.steps !== null)
+    ? healthMetrics.steps
+    : (m.steps || 0);
+
   // Goal calculations
-  const calValue = m.calories || 0;
   const calGoal = m.caloriesGoal || 500;
   const calPct = Math.round((calValue / calGoal) * 100);
 
-  const workValue = m.exerciseMins || 0;
+  // Real reported values only — no fabricated or unvalidated derivations
+  const workValue = (m.exerciseMins !== null && m.exerciseMins !== undefined) ? m.exerciseMins : null;
   const workGoal = m.exerciseGoal || 30;
-  const workPct = Math.round((workValue / workGoal) * 100);
+  const workPct = workValue !== null ? Math.round((workValue / workGoal) * 100) : 0;
 
-  const moveValue = m.walkingHours || 0;
+  const moveValue = (m.walkingHours !== null && m.walkingHours !== undefined) ? m.walkingHours : null;
   const moveGoal = m.walkingGoal || 12;
-  const movePct = Math.round((moveValue / moveGoal) * 100);
+  const movePct = moveValue !== null ? Math.round((moveValue / moveGoal) * 100) : 0;
+
+  // Health card interaction: prompt permissions if required, else open telemetry
+  const handleHealthCardPress = async () => {
+    if (healthStatus === 'permission_required') {
+      await refreshDeviceHealth?.();
+    } else {
+      navigation?.navigate('HealthDashboard');
+    }
+  };
+
+  // Status badge text mapping
+  const getStatusBadge = (fieldVal) => {
+    switch (healthStatus) {
+      case 'loading':
+        return 'Syncing';
+      case 'error':
+        return 'Error';
+      case 'permission_required':
+        return 'Tap to enable';
+      case 'ready':
+        return (fieldVal !== null && fieldVal !== undefined && fieldVal !== '') ? 'Live' : 'No data';
+      case 'idle':
+      default:
+        return 'Awaiting';
+    }
+  };
+
+  // Status badge color mapping
+  const getBadgeColors = (badgeText) => {
+    switch (badgeText) {
+      case 'Live':
+        return { bg: 'rgba(0, 230, 118, 0.14)', text: '#00E676' };
+      case 'Syncing':
+        return { bg: 'rgba(0, 191, 165, 0.14)', text: '#00BFA5' };
+      case 'Tap to enable':
+        return { bg: 'rgba(255, 167, 38, 0.18)', text: '#FFA726' };
+      case 'Error':
+        return { bg: 'rgba(255, 82, 82, 0.16)', text: '#FF5252' };
+      default:
+        return { bg: 'rgba(122, 158, 168, 0.14)', text: '#8FAAB2' };
+    }
+  };
+
+  // Live metric resolution: prioritize on-device Health Connect metrics when owner profile is active
+  const displayHr = isOwner ? (healthMetrics?.heartRate || m.heartRate || null) : (m.heartRate || null);
+  const displaySleep = isOwner
+    ? (healthMetrics?.sleepMinutes ? `${Math.floor(healthMetrics.sleepMinutes / 60)}h ${healthMetrics.sleepMinutes % 60}m` : (m.sleepDuration || null))
+    : (m.sleepDuration || null);
+  const displaySteps = isOwner
+    ? (healthMetrics?.steps !== undefined && healthMetrics?.steps !== null ? healthMetrics.steps : (m.steps !== undefined && m.steps !== null ? m.steps : null))
+    : (m.steps !== undefined && m.steps !== null ? m.steps : null);
+  const displayOxygen = isOwner ? (healthMetrics?.oxygenLevel || m.oxygen || null) : (m.oxygen || null);
+  const displayDistance = isOwner
+    ? (healthMetrics?.distance !== null && healthMetrics?.distance !== undefined ? healthMetrics.distance : (m.distance ?? null))
+    : (m.distance ?? null);
 
   // SVG Concentric Ring Geometries
   const center = 66;
@@ -73,11 +150,11 @@ export default function HomeScreen({ navigation }) {
 
   const rMid = 39;
   const cMid = 2 * Math.PI * rMid;
-  const offsetMid = cMid * (1 - Math.min(1, workValue / workGoal));
+  const offsetMid = cMid * (1 - Math.min(1, (workValue || 0) / workGoal));
 
   const rInner = 26;
   const cInner = 2 * Math.PI * rInner;
-  const offsetInner = cInner * (1 - Math.min(1, moveValue / moveGoal));
+  const offsetInner = cInner * (1 - Math.min(1, (moveValue || 0) / moveGoal));
 
   return (
     <View style={styles.container}>
@@ -206,7 +283,7 @@ export default function HomeScreen({ navigation }) {
                 <Activity color="#00E676" size={18} />
               </View>
               <View style={styles.metricValueRow}>
-                <Text style={styles.metricValue}>{workValue}</Text>
+                <Text style={styles.metricValue}>{workValue !== null ? workValue : '--'}</Text>
                 <Text style={styles.metricUnit}>min</Text>
               </View>
               <Text style={styles.metricLabel}>Workout</Text>
@@ -218,7 +295,7 @@ export default function HomeScreen({ navigation }) {
                 <Footprints color="#00BFA5" size={18} />
               </View>
               <View style={styles.metricValueRow}>
-                <Text style={styles.metricValue}>{(m.steps || 0).toLocaleString()}</Text>
+                <Text style={styles.metricValue}>{stepsValue.toLocaleString()}</Text>
                 <Text style={styles.metricUnit}>steps</Text>
               </View>
               <Text style={styles.metricLabel}>Steps</Text>
@@ -230,7 +307,7 @@ export default function HomeScreen({ navigation }) {
                 <Clock color="#29B6F6" size={18} />
               </View>
               <View style={styles.metricValueRow}>
-                <Text style={styles.metricValue}>{moveValue}</Text>
+                <Text style={styles.metricValue}>{moveValue !== null ? moveValue : '--'}</Text>
                 <Text style={styles.metricUnit}>hrs</Text>
               </View>
               <Text style={styles.metricLabel}>Move Hours</Text>
@@ -361,10 +438,10 @@ export default function HomeScreen({ navigation }) {
                 </View>
                 <View style={styles.goalItemValueRow}>
                   <Text style={styles.goalItemValues}>
-                    {workValue} <Text style={styles.goalItemTarget}>/ {workGoal} min</Text>
+                    {workValue !== null ? workValue : '--'} <Text style={styles.goalItemTarget}>/ {workGoal} min</Text>
                   </Text>
                   <View style={[styles.pctBadge, { backgroundColor: 'rgba(0, 230, 118, 0.14)' }]}>
-                    <Text style={[styles.pctBadgeText, { color: '#00E676' }]}>{workPct}%</Text>
+                    <Text style={[styles.pctBadgeText, { color: '#00E676' }]}>{workValue !== null ? `${workPct}%` : '--'}</Text>
                   </View>
                 </View>
               </View>
@@ -387,10 +464,10 @@ export default function HomeScreen({ navigation }) {
                 </View>
                 <View style={styles.goalItemValueRow}>
                   <Text style={styles.goalItemValues}>
-                    {moveValue} <Text style={styles.goalItemTarget}>/ {moveGoal} hrs</Text>
+                    {moveValue !== null ? moveValue : '--'} <Text style={styles.goalItemTarget}>/ {moveGoal} hrs</Text>
                   </Text>
                   <View style={[styles.pctBadge, { backgroundColor: 'rgba(41, 182, 246, 0.14)' }]}>
-                    <Text style={[styles.pctBadgeText, { color: '#29B6F6' }]}>{movePct}%</Text>
+                    <Text style={[styles.pctBadgeText, { color: '#29B6F6' }]}>{moveValue !== null ? `${movePct}%` : '--'}</Text>
                   </View>
                 </View>
               </View>
@@ -421,21 +498,27 @@ export default function HomeScreen({ navigation }) {
             <TouchableOpacity
               style={styles.insightCard}
               activeOpacity={0.8}
-              onPress={() => navigation?.navigate('HealthDashboard')}
+              onPress={handleHealthCardPress}
             >
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(255, 82, 82, 0.12)' }]}>
                   <Heart color="#FF5252" size={16} />
                 </View>
-                <View style={styles.insightStatusTag}>
-                  <Text style={styles.insightStatusTagText}>
-                    {m.heartRate ? (m.heartRate < 60 ? 'Resting' : m.heartRate > 100 ? 'Elevated' : 'Normal') : 'Awaiting'}
-                  </Text>
-                </View>
+                {(() => {
+                  const badge = getStatusBadge(displayHr);
+                  const colors = getBadgeColors(badge);
+                  return (
+                    <View style={[styles.insightStatusTag, { backgroundColor: colors.bg }]}>
+                      <Text style={[styles.insightStatusTagText, { color: colors.text }]}>
+                        {badge}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
               <Text style={styles.insightName}>Heart Rate</Text>
               <View style={styles.insightValueRow}>
-                <Text style={styles.insightMainVal}>{m.heartRate ? m.heartRate : '--'}</Text>
+                <Text style={styles.insightMainVal}>{displayHr ? displayHr : '--'}</Text>
                 <Text style={styles.insightValUnit}>BPM</Text>
               </View>
               {/* Mini pulse bars */}
@@ -449,69 +532,105 @@ export default function HomeScreen({ navigation }) {
             </TouchableOpacity>
 
             {/* Insight 2: Sleep */}
-            <View style={styles.insightCard}>
+            <TouchableOpacity
+              style={styles.insightCard}
+              activeOpacity={0.8}
+              onPress={handleHealthCardPress}
+            >
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(171, 71, 188, 0.12)' }]}>
                   <Moon color="#AB47BC" size={16} />
                 </View>
-                <View style={[styles.insightStatusTag, { backgroundColor: 'rgba(171, 71, 188, 0.14)' }]}>
-                  <Text style={[styles.insightStatusTagText, { color: '#CE93D8' }]}>
-                    {m.sleepDuration ? 'Good' : 'Tracking'}
-                  </Text>
-                </View>
+                {(() => {
+                  const badge = getStatusBadge(displaySleep);
+                  const colors = getBadgeColors(badge);
+                  return (
+                    <View style={[styles.insightStatusTag, { backgroundColor: colors.bg }]}>
+                      <Text style={[styles.insightStatusTagText, { color: colors.text }]}>
+                        {badge}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
               <Text style={styles.insightName}>Sleep</Text>
               <View style={styles.insightValueRow}>
-                <Text style={styles.insightMainVal}>{m.sleepDuration ? m.sleepDuration : '--'}</Text>
+                <Text style={styles.insightMainVal}>{displaySleep ? displaySleep : '--'}</Text>
               </View>
               <Text style={styles.insightNote}>
-                {m.sleepDuration ? 'Optimal recovery' : 'Wear band during sleep'}
+                {displaySleep ? 'Optimal recovery' : 'Wear band during sleep'}
               </Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Insight 3: Steps */}
-            <View style={styles.insightCard}>
+            <TouchableOpacity
+              style={styles.insightCard}
+              activeOpacity={0.8}
+              onPress={handleHealthCardPress}
+            >
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(0, 191, 165, 0.12)' }]}>
                   <Footprints color="#00BFA5" size={16} />
                 </View>
-                <View style={[styles.insightStatusTag, { backgroundColor: 'rgba(0, 191, 165, 0.14)' }]}>
-                  <Text style={[styles.insightStatusTagText, { color: '#00BFA5' }]}>
-                    {(m.steps || 0) > 0 ? 'Active' : 'Standby'}
-                  </Text>
-                </View>
+                {(() => {
+                  const badge = getStatusBadge(displaySteps);
+                  const colors = getBadgeColors(badge);
+                  return (
+                    <View style={[styles.insightStatusTag, { backgroundColor: colors.bg }]}>
+                      <Text style={[styles.insightStatusTagText, { color: colors.text }]}>
+                        {badge}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
               <Text style={styles.insightName}>Daily Steps</Text>
               <View style={styles.insightValueRow}>
-                <Text style={styles.insightMainVal}>{(m.steps || 0).toLocaleString()}</Text>
+                <Text style={styles.insightMainVal}>
+                  {displaySteps !== null && displaySteps !== undefined ? displaySteps.toLocaleString() : '--'}
+                </Text>
               </View>
               <Text style={styles.insightNote}>Goal: 10,000</Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Insight 4: SpO2 Blood Oxygen */}
-            <View style={styles.insightCard}>
+            <TouchableOpacity
+              style={styles.insightCard}
+              activeOpacity={0.8}
+              onPress={handleHealthCardPress}
+            >
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(41, 182, 246, 0.12)' }]}>
                   <Droplets color="#29B6F6" size={16} />
                 </View>
-                <View style={[styles.insightStatusTag, { backgroundColor: 'rgba(41, 182, 246, 0.14)' }]}>
-                  <Text style={[styles.insightStatusTagText, { color: '#90CAF9' }]}>
-                    {m.oxygen ? (m.oxygen >= 95 ? 'Optimal' : 'Low') : 'Awaiting'}
-                  </Text>
-                </View>
+                {(() => {
+                  const badge = getStatusBadge(displayOxygen);
+                  const colors = getBadgeColors(badge);
+                  return (
+                    <View style={[styles.insightStatusTag, { backgroundColor: colors.bg }]}>
+                      <Text style={[styles.insightStatusTagText, { color: colors.text }]}>
+                        {badge}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
               <Text style={styles.insightName}>Blood Oxygen</Text>
               <View style={styles.insightValueRow}>
-                <Text style={styles.insightMainVal}>{m.oxygen ? m.oxygen : '--'}</Text>
+                <Text style={styles.insightMainVal}>{displayOxygen ? `${displayOxygen}` : '--'}</Text>
                 <Text style={styles.insightValUnit}>%</Text>
               </View>
               <Text style={styles.insightNote}>
-                {m.oxygen ? 'Healthy saturation' : 'Sync to record SpO2'}
+                {displayOxygen ? 'Healthy saturation' : 'Sync to record SpO2'}
               </Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Insight 5: HRV Recovery */}
-            <View style={styles.insightCard}>
+            <TouchableOpacity
+              style={styles.insightCard}
+              activeOpacity={0.8}
+              onPress={handleHealthCardPress}
+            >
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(0, 230, 118, 0.12)' }]}>
                   <Zap color="#00E676" size={16} />
@@ -530,29 +649,39 @@ export default function HomeScreen({ navigation }) {
               <Text style={styles.insightNote}>
                 {m.hrv ? 'Pebble RMSSD score' : 'Sync to record HRV'}
               </Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Insight 6: Distance */}
-            <View style={styles.insightCard}>
+            <TouchableOpacity
+              style={styles.insightCard}
+              activeOpacity={0.8}
+              onPress={handleHealthCardPress}
+            >
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(255, 167, 38, 0.12)' }]}>
                   <Compass color="#FFA726" size={16} />
                 </View>
-                <View style={[styles.insightStatusTag, { backgroundColor: 'rgba(255, 167, 38, 0.14)' }]}>
-                  <Text style={[styles.insightStatusTagText, { color: '#FFA726' }]}>
-                    {m.distance ? 'Tracked' : 'Standby'}
-                  </Text>
-                </View>
+                {(() => {
+                  const badge = getStatusBadge(displayDistance);
+                  const colors = getBadgeColors(badge);
+                  return (
+                    <View style={[styles.insightStatusTag, { backgroundColor: colors.bg }]}>
+                      <Text style={[styles.insightStatusTagText, { color: colors.text }]}>
+                        {badge}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
               <Text style={styles.insightName}>Distance</Text>
               <View style={styles.insightValueRow}>
-                <Text style={styles.insightMainVal}>{m.distance !== null && m.distance !== undefined ? m.distance : '--'}</Text>
+                <Text style={styles.insightMainVal}>{displayDistance !== null && displayDistance !== undefined ? displayDistance : '--'}</Text>
                 <Text style={styles.insightValUnit}>km</Text>
               </View>
               <Text style={styles.insightNote}>
-                {m.distance ? 'Pebble activity distance' : 'Sync to record distance'}
+                {displayDistance ? 'Pebble activity distance' : 'Sync to record distance'}
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>

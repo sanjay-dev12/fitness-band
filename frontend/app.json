@@ -21,6 +21,7 @@
         "android.permission.health.READ_OXYGEN_SATURATION",
         "android.permission.health.READ_DISTANCE",
         "android.permission.health.READ_TOTAL_CALORIES_BURNED",
+        "android.permission.health.READ_ACTIVE_CALORIES_BURNED",
         "android.permission.health.READ_EXERCISE"
       ],
       "adaptiveIcon": {

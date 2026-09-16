@@ -30,9 +30,9 @@ export const getFamilyMemberHealth = async (currentUserId, memberId) => {
 
     const connection = isParent || isChild;
     if (connection.status !== 'accepted') {
-         const error = new Error("Connection is not accepted yet");
-         error.statusCode = 403;
-         throw error;
+        const error = new Error("Connection is not accepted yet");
+        error.statusCode = 403;
+        throw error;
     }
 
     return await getLatestHealth(memberId);

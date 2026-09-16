@@ -34,6 +34,7 @@ import {
   openSettings,
   HEALTH_CONNECT_STATUS,
 } from '../health.service';
+import { setupHealthConnect, readHealthData } from '../../../services/healthConnect';
 import { useProfile } from '../../../context/ProfileContext';
 
 export default function HealthDashboardScreen({ navigation }) {
@@ -54,6 +55,25 @@ export default function HealthDashboardScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [syncStatus, setSyncStatus] = useState('ready'); // 'ready' | 'syncing' | 'success' | 'permission_required' | 'error'
   const [error, setError] = useState(null);
+  const [testLoading, setTestLoading] = useState(false);
+
+  const handleTestHealthConnect = async () => {
+    try {
+      setTestLoading(true);
+      console.log('========== [HC TEST] STARTING SETUP ==========');
+      const setupResult = await setupHealthConnect();
+      console.log('========== [HC TEST] SETUP RESULT ==========', JSON.stringify(setupResult, null, 2));
+
+      console.log('========== [HC TEST] READING DATA ==========');
+      const dataResult = await readHealthData();
+      console.log('========== [HC TEST] DATA RESULT ==========', JSON.stringify(dataResult, null, 2));
+      console.log('========== [HC TEST] FINISHED ==========');
+    } catch (err) {
+      console.error('========== [HC TEST] ERROR ==========', err);
+    } finally {
+      setTestLoading(false);
+    }
+  };
 
   const formatLastSynced = (date) => {
     if (!date) return 'Not synced yet';
@@ -282,6 +302,31 @@ export default function HealthDashboardScreen({ navigation }) {
             />
           }
         >
+          {/* Temporary Debug Button for Verification Gate 2 */}
+          <TouchableOpacity
+            style={{
+              backgroundColor: '#FF5722',
+              paddingVertical: 14,
+              paddingHorizontal: 20,
+              borderRadius: 12,
+              alignItems: 'center',
+              marginBottom: 16,
+              flexDirection: 'row',
+              justifyContent: 'center',
+              elevation: 4,
+            }}
+            onPress={handleTestHealthConnect}
+            disabled={testLoading}
+            activeOpacity={0.8}
+          >
+            {testLoading ? (
+              <ActivityIndicator color="#FFFFFF" style={{ marginRight: 8 }} />
+            ) : null}
+            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '800', letterSpacing: 0.5 }}>
+              TEST HEALTH CONNECT
+            </Text>
+          </TouchableOpacity>
+
           {/* Status Banner */}
           <View style={styles.statusBanner}>
             <View style={styles.statusLeft}>
