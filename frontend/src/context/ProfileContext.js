@@ -6,6 +6,8 @@ import {
   syncHealthDataApi,
   getFamilyApi,
   getFamilyMemberHealthApi,
+  setBluetoothStatusApi,
+  getBluetoothStatusApi,
 } from '../services/api';
 import {
   syncAllHealthData,
@@ -19,15 +21,15 @@ const ProfileContext = createContext(null);
 const STORAGE_PROFILES_KEY = 'handband_family_profiles';
 const STORAGE_ACTIVE_ID_KEY = 'handband_active_profile_id';
 
-// Real empty/baseline metrics - zero hardcoded mock values
-export const BASELINE_METRICS = {
-  calories: 0,
+// Real empty initial metrics - zero hardcoded mock values
+const EMPTY_INITIAL_METRICS = {
+  calories: null,
   caloriesGoal: 500,
-  exerciseMins: 0,
+  exerciseMins: null,
   exerciseGoal: 30,
-  walkingHours: 0,
+  walkingHours: null,
   walkingGoal: 12,
-  steps: 0,
+  steps: null,
   heartRate: null,
   restingHeartRate: null,
   oxygen: null,
@@ -42,7 +44,7 @@ export const BASELINE_METRICS = {
   workoutType: null,
   workoutDuration: null,
   source: null,
-  statusText: 'Connected',
+  statusText: 'Not connected',
 };
 
 const getInitialProfiles = () => {
@@ -58,9 +60,9 @@ const getInitialProfiles = () => {
       isPrimary: true,
       avatar: null,
       initials: parentName.slice(0, 2).toUpperCase(),
-      metrics: { ...BASELINE_METRICS },
-      battery: 98,
-      online: true,
+      metrics: { ...EMPTY_INITIAL_METRICS },
+      battery: null,
+      online: false,
     },
   ];
 };
@@ -133,12 +135,13 @@ export function ProfileProvider({ children }) {
   };
 
   const [lastSyncedTime, setLastSyncedTime] = useState(null);
+  const [isBluetoothConnected, setIsBluetoothConnected] = useState(Platform.OS === 'android');
 
   // Health Connect local device state
   const [healthMetrics, setHealthMetrics] = useState({
     heartRate: null,
-    steps: 0,
-    calories: 0,
+    steps: null,
+    calories: null,
     distance: null,
     sleepMinutes: null,
     oxygenLevel: null,
@@ -159,20 +162,25 @@ export function ProfileProvider({ children }) {
         if (d.syncedAt || d.recordedAt) {
           setLastSyncedTime(new Date(d.syncedAt || d.recordedAt));
         }
+        if (Platform.OS === 'web') {
+          setIsBluetoothConnected(false);
+        } else if (d.bluetoothConnected !== undefined) {
+          setIsBluetoothConnected(Boolean(d.bluetoothConnected));
+        }
         setProfiles((prev) =>
           prev.map((p) => {
             if (p.isPrimary) {
               return {
                 ...p,
-                battery: d.battery !== null && d.battery !== undefined ? d.battery : p.battery,
+                battery: d.battery !== null && d.battery !== undefined ? d.battery : null,
                 metrics: {
-                  calories: d.calories !== null && d.calories !== undefined ? d.calories : 0,
+                  calories: d.calories !== null && d.calories !== undefined ? d.calories : null,
                   caloriesGoal: 500,
-                  exerciseMins: d.exerciseMins !== null && d.exerciseMins !== undefined ? d.exerciseMins : 0,
+                  exerciseMins: d.exerciseMins !== null && d.exerciseMins !== undefined ? d.exerciseMins : null,
                   exerciseGoal: 30,
-                  walkingHours: d.walkingHours !== null && d.walkingHours !== undefined ? d.walkingHours : 0,
+                  walkingHours: d.walkingHours !== null && d.walkingHours !== undefined ? d.walkingHours : null,
                   walkingGoal: 12,
-                  steps: d.steps !== null && d.steps !== undefined ? d.steps : 0,
+                  steps: d.steps !== null && d.steps !== undefined ? d.steps : null,
                   heartRate: d.heartRate || null,
                   restingHeartRate: d.restingHeartRate || null,
                   oxygen: d.oxygenLevel || null,
@@ -186,8 +194,10 @@ export function ProfileProvider({ children }) {
                   stress: d.stress || null,
                   workoutType: d.workoutType || null,
                   workoutDuration: d.workoutDuration || null,
-                  source: d.source || 'Health Connect',
-                  statusText: d.statusText || 'Connected',
+                  source: d.source || 'Bluetooth Band',
+                  statusText: d.statusText || (d.bluetoothConnected === false ? 'Bluetooth Disconnected' : 'Connected'),
+                  bluetoothConnected: d.bluetoothConnected !== false,
+                  minutesElapsed: d.minutesElapsed || 0,
                 },
               };
             }
@@ -199,6 +209,30 @@ export function ProfileProvider({ children }) {
       console.log('Error loading health data:', e);
     }
   }, []);
+
+  /**
+   * Toggle Bluetooth state and communicate to backend
+   */
+  const toggleBluetooth = async (desiredState) => {
+    try {
+      const nextState = desiredState !== undefined ? Boolean(desiredState) : !isBluetoothConnected;
+      setIsBluetoothConnected(nextState);
+      const res = await setBluetoothStatusApi(nextState);
+      if (res?.success) {
+        showToast(
+          nextState
+            ? 'Bluetooth connected • Telemetry active'
+            : 'Bluetooth disconnected • Data calculation stopped',
+          nextState ? 'success' : 'info'
+        );
+      }
+      await refreshHealthData();
+      return { success: true, isConnected: nextState };
+    } catch (e) {
+      console.warn('toggleBluetooth error:', e);
+      return { success: false, error: e.message };
+    }
+  };
 
   /**
    * Fetch family circle members from backend database
@@ -231,23 +265,26 @@ export function ProfileProvider({ children }) {
             isPrimary: false,
             avatar: null,
             initials: memberName.slice(0, 2).toUpperCase(),
+            lastSynced: h?.syncedAt || h?.recordedAt || null,
             metrics: h
               ? {
-                  calories: h.calories || 0,
+                  calories: (h.calories !== null && h.calories !== undefined) ? h.calories : null,
                   caloriesGoal: 500,
-                  exerciseMins: h.exerciseMins || 0,
+                  exerciseMins: (h.exerciseMins !== null && h.exerciseMins !== undefined) ? h.exerciseMins : null,
                   exerciseGoal: 30,
-                  walkingHours: h.walkingHours || 0,
+                  walkingHours: (h.walkingHours !== null && h.walkingHours !== undefined) ? h.walkingHours : null,
                   walkingGoal: 12,
-                  steps: h.steps || 0,
+                  steps: (h.steps !== null && h.steps !== undefined) ? h.steps : null,
                   heartRate: h.heartRate || null,
                   oxygen: h.oxygenLevel || null,
                   sleepDuration: h.sleepDuration || null,
                   bodyAge: null,
                   statusText: h.statusText || 'In Target Zone',
+                  source: h.source || 'Bluetooth Band',
+                  lastSynced: h.syncedAt || h.recordedAt || null,
                 }
-              : { ...BASELINE_METRICS },
-            battery: h?.battery || 90,
+              : { ...EMPTY_INITIAL_METRICS, source: 'Bluetooth Band' },
+            battery: (h?.battery !== null && h?.battery !== undefined) ? h.battery : null,
             online: c.status === 'accepted',
             inviteCode: c.inviteCode,
             status: c.status,
@@ -302,7 +339,7 @@ export function ProfileProvider({ children }) {
                   stress: d.stress || null,
                   workoutType: d.workoutType || null,
                   workoutDuration: d.workoutDuration || null,
-                  source: d.source || 'Health Connect',
+                  source: d.source || 'Bluetooth Band',
                   statusText: d.statusText || 'Synchronized',
                 },
               };
@@ -420,7 +457,7 @@ export function ProfileProvider({ children }) {
         sleepMinutes: totalSleepMins > 0 ? totalSleepMins : null,
         oxygenLevel: latestOxygen,
         lastSynced: syncDate,
-        source: 'Pebble via Health Connect',
+        source: 'Bluetooth Band',
       };
 
       setHealthMetrics(mapped);
@@ -543,6 +580,8 @@ export function ProfileProvider({ children }) {
         syncHealthTelemetry,
         syncHealthData,
         lastSyncedTime,
+        isBluetoothConnected,
+        toggleBluetooth,
         toast,
         showToast,
         hideToast,

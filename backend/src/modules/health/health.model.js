@@ -99,7 +99,7 @@ const HealthData = sequelize.define('HealthData', {
     source: {
         type: DataTypes.STRING,
         allowNull: true,
-        defaultValue: 'Health Connect',
+        defaultValue: 'Bluetooth Band',
     },
     sourceRecordId: {
         type: DataTypes.STRING,
@@ -116,6 +116,15 @@ const HealthData = sequelize.define('HealthData', {
     },
     statusText: {
         type: DataTypes.STRING,
+        allowNull: true,
+    },
+    bluetoothConnected: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+    },
+    bluetoothDisconnectedAt: {
+        type: DataTypes.DATE,
         allowNull: true,
     },
     recordedAt: {

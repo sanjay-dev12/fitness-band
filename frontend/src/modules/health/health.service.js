@@ -109,7 +109,7 @@ export async function getHeartRateData(options = {}) {
 
   const allSamples = [];
   for (const record of records) {
-    const origin = record.metadata?.dataOrigin || 'Pebble via Health Connect';
+    const origin = record.metadata?.dataOrigin || 'Hand Band via Bluetooth';
     if (Array.isArray(record.samples)) {
       for (const sample of record.samples) {
         if (sample && typeof sample.beatsPerMinute === 'number') {
@@ -149,9 +149,18 @@ export async function getHeartRateData(options = {}) {
 }
 
 /**
- * Backwards-compatible sync handler for ProfileContext
+ * Unified sync handler for ProfileContext & DeviceScreen
  */
 export async function syncAllHealthData() {
+  if (Platform.OS !== 'android') {
+    return {
+      success: false,
+      isRealData: false,
+      reason: 'Health sync is only available on the Android app.',
+      lastSynced: null,
+    };
+  }
+
   try {
     const setup = await setupHealthConnect();
     if (!setup.ok) {
@@ -189,7 +198,8 @@ export async function syncAllHealthData() {
       calories: Math.round(totalCal),
       distance: totalDist > 0 ? Math.round((totalDist / 1000) * 100) / 100 : null,
       oxygenLevel: oxygen.length > 0 ? oxygen[oxygen.length - 1].percentage || null : null,
-      source: 'Pebble via Health Connect',
+      bluetoothConnected: true,
+      source: 'Hand Band via Bluetooth',
       timestamp: new Date().toISOString(),
     };
 
@@ -199,7 +209,7 @@ export async function syncAllHealthData() {
       success: true,
       isRealData: true,
       metrics: payload,
-      source: 'Pebble via Health Connect',
+      source: 'Hand Band via Bluetooth',
       lastSynced: new Date(),
       apiResponse: apiRes?.data,
     };

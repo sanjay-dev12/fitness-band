@@ -91,7 +91,7 @@ export default function HeartRateCard({
           <ShieldAlert color="#FF5252" size={36} style={styles.stateIcon} />
           <Text style={styles.stateTitle}>Permission Required</Text>
           <Text style={styles.stateDescription}>
-            Heart rate permission is required to display your health data from Pebble Halo via Health Connect.
+            Heart rate sensor telemetry is transmitted live from your connected Hand Band.
           </Text>
           <TouchableOpacity
             style={styles.actionButton}
@@ -195,7 +195,7 @@ export default function HeartRateCard({
           <HelpCircle color="#7A9EA8" size={36} style={styles.stateIcon} />
           <Text style={styles.stateTitle}>No Data Available</Text>
           <Text style={styles.stateDescription}>
-            No heart rate data is available in Health Connect yet. Make sure Pebble Halo is synced with your Pebble Band and syncing to Health Connect.
+            No heart rate data is available yet. Make sure your Hand Band is powered on and connected via Bluetooth.
           </Text>
           <TouchableOpacity
             style={styles.actionButton}

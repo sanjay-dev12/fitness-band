@@ -1,4 +1,12 @@
-import { syncHealth, getMyHealth, getMyLatestHealth, getFamilyMemberHealth, getMyHealthSummary } from './health.service.js';
+import {
+    syncHealth,
+    getMyHealth,
+    getMyLatestHealth,
+    getFamilyMemberHealth,
+    getMyHealthSummary,
+    setBluetoothStatus,
+    getBluetoothStatus
+} from './health.service.js';
 
 export const sync = async (req, res, next) => {
     try {
@@ -47,3 +55,23 @@ export const getFamilyHealth = async (req, res, next) => {
         next(error);
     }
 };
+
+export const updateBluetooth = async (req, res, next) => {
+    try {
+        const isConnected = req.body.connected !== undefined ? Boolean(req.body.connected) : (req.body.enabled !== undefined ? Boolean(req.body.enabled) : true);
+        const result = await setBluetoothStatus(req.user.id, isConnected);
+        res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const getBluetooth = async (req, res, next) => {
+    try {
+        const result = await getBluetoothStatus(req.user.id);
+        res.status(200).json({ success: true, data: result });
+    } catch (error) {
+        next(error);
+    }
+};
+

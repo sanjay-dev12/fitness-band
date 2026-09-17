@@ -1,5 +1,6 @@
-import { saveHealthData, getHealthHistory, getLatestHealth, getHealthSummary } from './health.repository.js';
+import { saveHealthData, getHealthHistory, getLatestHealth, getHealthSummary, updateBluetoothState } from './health.repository.js';
 import { findConnection } from '../family/family.repository.js';
+
 
 export const syncHealth = async (userId, healthData) => {
     return await saveHealthData(userId, healthData);
@@ -37,3 +38,19 @@ export const getFamilyMemberHealth = async (currentUserId, memberId) => {
 
     return await getLatestHealth(memberId);
 };
+
+export const setBluetoothStatus = async (userId, isConnected) => {
+    const current = await getMyLatestHealth(userId);
+    return await updateBluetoothState(userId, isConnected, current);
+};
+
+export const getBluetoothStatus = async (userId) => {
+    const latest = await getLatestHealth(userId);
+    const isConnected = latest ? latest.bluetoothConnected !== false : true;
+    return {
+        bluetoothConnected: isConnected,
+        statusText: isConnected ? 'Connected via Bluetooth' : 'Bluetooth Disconnected • Telemetry Paused',
+        lastSynced: latest?.syncedAt || latest?.recordedAt || null
+    };
+};
+

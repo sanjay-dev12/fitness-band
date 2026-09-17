@@ -30,9 +30,10 @@ import {
 } from 'lucide-react-native';
 import { useProfile } from '../context/ProfileContext';
 import { getStoredUser, setAuthToken, setStoredUser, getMeApi, updateProfileApi } from '../services/api';
+import { formatConnectedDateTime } from '../utils/dateUtils';
 
 export default function ProfileScreen({ navigation }) {
-  const { profiles, showToast, showModal, syncHealthData, lastSyncedTime } = useProfile();
+  const { profiles, showToast, showModal, syncHealthData, lastSyncedTime, isBluetoothConnected } = useProfile();
 
   const storedUser = getStoredUser();
   const [currentUser, setCurrentUser] = useState(storedUser);
@@ -306,9 +307,9 @@ export default function ProfileScreen({ navigation }) {
               <View style={styles.deviceTextCol}>
                 <Text style={styles.deviceBandName}>{ownerName}'s Band</Text>
                 <View style={styles.deviceStatusSub}>
-                  <View style={styles.greenStatusDot} />
+                  <View style={[styles.greenStatusDot, !isBluetoothConnected && { backgroundColor: '#FF5252' }]} />
                   <Text style={styles.deviceStatusLabel}>
-                    Connected • {ownerBattery}% Battery
+                    {isBluetoothConnected ? `Connected • ${ownerBattery}% Battery • ${formatConnectedDateTime(lastSyncedTime, true)}` : 'Bluetooth Disconnected'}
                   </Text>
                 </View>
               </View>
@@ -322,8 +323,10 @@ export default function ProfileScreen({ navigation }) {
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Connected Health & Telemetry</Text>
             <View style={styles.healthStatusPill}>
-              <View style={styles.greenStatusDotSmall} />
-              <Text style={styles.healthStatusPillText}>Health Connect Active</Text>
+              <View style={[styles.greenStatusDotSmall, !isBluetoothConnected && { backgroundColor: '#FF5252' }]} />
+              <Text style={styles.healthStatusPillText}>
+                {isBluetoothConnected ? 'Bluetooth Band Active' : 'Band Paused'}
+              </Text>
             </View>
           </View>
 
@@ -337,9 +340,9 @@ export default function ProfileScreen({ navigation }) {
                 <Activity color="#00BFA5" size={22} />
               </View>
               <View style={styles.connectedHealthTileTextCol}>
-                <Text style={styles.connectedHealthTileTitle}>Health Connect Integration</Text>
+                <Text style={styles.connectedHealthTileTitle}>Bluetooth Band Telemetry</Text>
                 <Text style={styles.connectedHealthTileSub}>
-                  {formatLastSynced(lastSyncedTime)} • Vitals Synced
+                  {formatConnectedDateTime(lastSyncedTime)} • Vitals Synced
                 </Text>
               </View>
             </View>

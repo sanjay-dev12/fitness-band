@@ -5,32 +5,20 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
+  Switch,
+  Platform,
 } from 'react-native';
 import {
   HelpCircle,
   Plus,
   Watch,
   Battery,
-  RefreshCw,
   Bluetooth,
   Unlink,
   ChevronRight,
-  ShieldCheck,
-  Zap,
-  CheckCircle2,
-  AlertTriangle,
-  AlertCircle,
-  Activity,
-  Heart,
-  ArrowRight,
 } from 'lucide-react-native';
 import { useProfile } from '../context/ProfileContext';
-import {
-  checkHealthPermissions,
-  requestHealthPermissions,
-  checkHealthConnectAvailability,
-} from '../modules/health/health.service';
+import { formatConnectedDateTime } from '../utils/dateUtils';
 
 export default function DeviceScreen({ navigation }) {
   const {
@@ -39,86 +27,20 @@ export default function DeviceScreen({ navigation }) {
     switchProfile,
     showModal,
     showToast,
-    syncHealthData,
+    isBluetoothConnected,
+    toggleBluetooth,
     lastSyncedTime,
   } = useProfile();
 
-  const [isDeviceBound, setIsDeviceBound] = useState(true);
-  const [syncStatus, setSyncStatus] = useState('ready'); // 'ready' | 'syncing' | 'success' | 'permission_required' | 'error'
-  const isSyncing = syncStatus === 'syncing';
-
-  const batteryLevel = activeProfile?.battery || 98;
-
-  const formatLastSynced = (date) => {
-    if (!date) return 'Not synced yet';
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return 'Not synced yet';
-    const timeStr = d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
-    const isToday = d.toDateString() === new Date().toDateString();
-    return isToday ? `Today, ${timeStr}` : `${d.toLocaleDateString([], { month: 'short', day: 'numeric' })}, ${timeStr}`;
-  };
-
-  const handleSyncNow = async () => {
-    if (syncStatus === 'syncing') return;
-
-    if (!isDeviceBound) {
-      if (showToast) {
-        showToast('Please connect your health band first', 'error');
-      }
-      return;
-    }
-
-    setSyncStatus('syncing');
-
-    try {
-      // 1. Verify health permissions
-      const perms = await checkHealthPermissions();
-      if (!perms.hasHeartRate) {
-        const req = await requestHealthPermissions();
-        if (!req.granted) {
-          setSyncStatus('permission_required');
-          if (showToast) {
-            showToast('Health data permission required to read telemetry', 'error');
-          }
-          return;
-        }
-      }
-
-      // 2. Perform synchronization
-      const res = await syncHealthData();
-      if (res?.success) {
-        setSyncStatus('success');
-        if (showToast) {
-          showToast('Health data synced successfully', 'success');
-        }
-        // Return to ready after 4 seconds
-        setTimeout(() => {
-          setSyncStatus((cur) => (cur === 'success' ? 'ready' : cur));
-        }, 4000);
-      } else if (res?.permissionRequired) {
-        setSyncStatus('permission_required');
-        if (showToast) {
-          showToast('Health data permission required', 'error');
-        }
-      } else {
-        setSyncStatus('error');
-        if (showToast) {
-          showToast(res?.error || 'Unable to sync health data', 'error');
-        }
-      }
-    } catch (e) {
-      setSyncStatus('error');
-      if (showToast) {
-        showToast(e.message || 'Unable to sync health data', 'error');
-      }
-    }
-  };
+  const isWeb = Platform.OS === 'web';
+  const [isDeviceBound, setIsDeviceBound] = useState(!isWeb && isBluetoothConnected);
+  const batteryLevel = isDeviceBound && activeProfile?.battery !== null && activeProfile?.battery !== undefined ? activeProfile.battery : null;
 
   const handleRemoveDevice = () => {
     if (showModal) {
       showModal({
         title: 'Remove Device',
-        message: `Are you sure you want to unpair ${activeProfile?.name || 'this'}'s Band? Your wearable will no longer sync activity data until reconnected.`,
+        message: `Are you sure you want to unpair ${activeProfile?.name || 'this'}'s Band? Your wearable will be disconnected until re-paired.`,
         type: 'error',
         confirmText: 'Remove Device',
         onConfirm: () => {
@@ -139,7 +61,6 @@ export default function DeviceScreen({ navigation }) {
       if (showToast) {
         showToast('Band connected successfully via Bluetooth', 'success');
       }
-      handleSyncNow();
     } else if (navigation) {
       navigation.navigate('FamilySetup');
     }
@@ -149,7 +70,7 @@ export default function DeviceScreen({ navigation }) {
     if (showModal) {
       showModal({
         title: 'Connection Settings',
-        message: 'Protocol: Bluetooth Low Energy (BLE 5.2)\nAuto-Sync: Enabled (every 15 min)\nBackground Telemetry: Active\nStatus: Connected',
+        message: `Protocol: Bluetooth Low Energy (BLE 5.2)\nStatus: ${isBluetoothConnected ? 'Connected & Active' : 'Disconnected (Off)'}\nAuto-Reconnect: Enabled\nSignal Strength: -64 dBm (Strong)`,
         type: 'info',
         confirmText: 'Got It',
       });
@@ -195,25 +116,37 @@ export default function DeviceScreen({ navigation }) {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 4. Connection Status */}
-        <View style={[styles.statusCard, !isDeviceBound && styles.statusCardDisconnected]}>
+        <View style={[styles.statusCard, (!isDeviceBound || !isBluetoothConnected) && styles.statusCardDisconnected]}>
           <View style={styles.statusCardLeft}>
-            <View style={[styles.statusDot, !isDeviceBound && styles.statusDotDisconnected]} />
+            <View style={[
+              styles.statusDot,
+              !isDeviceBound && styles.statusDotDisconnected,
+              isDeviceBound && !isBluetoothConnected && { backgroundColor: '#FF5252' }
+            ]} />
             <View style={styles.statusTextCol}>
               <Text style={styles.statusTitle}>
-                {isDeviceBound ? 'Band Connected' : 'No Device Connected'}
+                {!isDeviceBound ? 'No Device Connected' : (!isBluetoothConnected ? 'Bluetooth Disconnected' : 'Band Connected')}
               </Text>
               <Text style={styles.statusSubtitle}>
-                {isDeviceBound
-                  ? isSyncing
-                    ? 'Synchronizing health telemetry...'
-                    : 'Syncing your health data'
-                  : 'Connect a band to sync your telemetry'}
+                {!isDeviceBound
+                  ? 'Connect a band to manage your device'
+                  : (!isBluetoothConnected
+                    ? 'Data calculation stopped while Bluetooth is OFF'
+                    : `Connected • ${formatConnectedDateTime(lastSyncedTime)}`)}
               </Text>
             </View>
           </View>
-          <View style={[styles.statusPill, !isDeviceBound && styles.statusPillDisconnected]}>
-            <Text style={[styles.statusPillText, !isDeviceBound && styles.statusPillTextDisconnected]}>
-              {isDeviceBound ? (isSyncing ? 'Syncing' : 'Connected') : 'Offline'}
+          <View style={[
+            styles.statusPill,
+            (!isDeviceBound || !isBluetoothConnected) && styles.statusPillDisconnected,
+            isDeviceBound && !isBluetoothConnected && { backgroundColor: 'rgba(255, 82, 82, 0.15)' }
+          ]}>
+            <Text style={[
+              styles.statusPillText,
+              (!isDeviceBound || !isBluetoothConnected) && styles.statusPillTextDisconnected,
+              isDeviceBound && !isBluetoothConnected && { color: '#FF8A80' }
+            ]}>
+              {!isDeviceBound ? 'Offline' : (!isBluetoothConnected ? 'Paused' : 'Connected')}
             </Text>
           </View>
         </View>
@@ -224,133 +157,59 @@ export default function DeviceScreen({ navigation }) {
             <View style={styles.deviceCard}>
               <View style={styles.deviceCardHeader}>
                 <View style={styles.deviceAvatarRing}>
-                  <Watch color="#00BFA5" size={28} />
+                  <Watch color={isBluetoothConnected ? "#00BFA5" : "#8FAAB2"} size={28} />
                 </View>
                 <View style={styles.deviceMainInfo}>
                   <Text style={styles.deviceName} numberOfLines={1}>
                     {activeProfile?.name}'s Band
                   </Text>
                   <View style={styles.deviceSubRow}>
-                    <View style={styles.onlineDot} />
-                    <Text style={styles.connectedText}>Connected via Bluetooth</Text>
+                    <View style={[styles.onlineDot, !isBluetoothConnected && { backgroundColor: '#FF5252' }]} />
+                    <Text style={[styles.connectedText, !isBluetoothConnected && { color: '#FF8A80' }]}>
+                      {isBluetoothConnected ? `Connected • ${formatConnectedDateTime(lastSyncedTime)}` : 'Bluetooth Off (Calculation Stopped)'}
+                    </Text>
                   </View>
                 </View>
+
+                {/* Quick Bluetooth Toggle Button */}
+                <TouchableOpacity
+                  style={[
+                    styles.btToggleBtn,
+                    isBluetoothConnected ? styles.btToggleBtnOn : styles.btToggleBtnOff
+                  ]}
+                  onPress={() => toggleBluetooth?.()}
+                  activeOpacity={0.7}
+                >
+                  <Bluetooth color={isBluetoothConnected ? "#001F27" : "#FFFFFF"} size={13} style={{ marginRight: 4 }} />
+                  <Text style={[styles.btToggleBtnText, { color: isBluetoothConnected ? "#001F27" : "#FFFFFF" }]}>
+                    {isBluetoothConnected ? 'BLE ON' : 'BLE OFF'}
+                  </Text>
+                </TouchableOpacity>
               </View>
 
-              {/* 6 & 7. Battery and Last Sync Stats Grid */}
+              {/* 6 & 7. Battery and Connection Status Grid */}
               <View style={styles.deviceStatsGrid}>
                 <View style={styles.deviceStatTile}>
                   <View style={styles.statTileHeader}>
                     <Battery color="#00BFA5" size={16} />
                     <Text style={styles.statTileLabel}>Battery</Text>
                   </View>
-                  <Text style={styles.statTileValue}>{batteryLevel}%</Text>
-                  <Text style={styles.statTileSub}>Normal health</Text>
+                  <Text style={styles.statTileValue}>{batteryLevel !== null ? `${batteryLevel}%` : '--'}</Text>
+                  <Text style={styles.statTileSub}>{batteryLevel !== null ? 'Normal health' : 'No data'}</Text>
                 </View>
 
                 <View style={styles.deviceStatTile}>
                   <View style={styles.statTileHeader}>
-                    <RefreshCw color="#29B6F6" size={16} />
-                    <Text style={styles.statTileLabel}>Last Synced</Text>
+                    <Bluetooth color={isBluetoothConnected ? "#00E676" : "#8FAAB2"} size={16} />
+                    <Text style={styles.statTileLabel}>Connection</Text>
                   </View>
-                  <Text style={styles.statTileValue}>{formatLastSynced(lastSyncedTime)}</Text>
-                  <Text style={styles.statTileSub}>Telemetry active</Text>
+                  <Text style={styles.statTileValue}>{isBluetoothConnected ? 'BLE 5.2' : 'Offline'}</Text>
+                  <Text style={styles.statTileSub}>{isBluetoothConnected ? formatConnectedDateTime(lastSyncedTime, true) : 'Disconnected'}</Text>
                 </View>
-              </View>
-
-              {/* 8. Sync Health Data Button */}
-              <TouchableOpacity
-                style={[
-                  styles.syncButton,
-                  syncStatus === 'syncing' && styles.syncButtonDisabled,
-                  syncStatus === 'permission_required' && styles.syncButtonPermission,
-                  syncStatus === 'error' && styles.syncButtonError,
-                ]}
-                onPress={handleSyncNow}
-                disabled={syncStatus === 'syncing'}
-                activeOpacity={0.8}
-              >
-                {syncStatus === 'syncing' ? (
-                  <>
-                    <ActivityIndicator size="small" color="#001F27" style={{ marginRight: 8 }} />
-                    <Text style={styles.syncButtonText}>Syncing Health Data...</Text>
-                  </>
-                ) : syncStatus === 'success' ? (
-                  <>
-                    <CheckCircle2 color="#001F27" size={18} style={{ marginRight: 8 }} />
-                    <Text style={styles.syncButtonText}>Sync Complete</Text>
-                  </>
-                ) : syncStatus === 'permission_required' ? (
-                  <>
-                    <AlertTriangle color="#FFFFFF" size={18} style={{ marginRight: 8 }} />
-                    <Text style={[styles.syncButtonText, { color: '#FFFFFF' }]}>Health Data Permission Required</Text>
-                  </>
-                ) : syncStatus === 'error' ? (
-                  <>
-                    <AlertCircle color="#FFFFFF" size={18} style={{ marginRight: 8 }} />
-                    <Text style={[styles.syncButtonText, { color: '#FFFFFF' }]}>Sync Failed — Tap to Retry</Text>
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw color="#001F27" size={18} style={{ marginRight: 8 }} />
-                    <Text style={styles.syncButtonText}>Sync Health Data</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {/* Connected Health Integration Card */}
-            <View style={styles.connectedHealthCard}>
-              <View style={styles.connectedHealthHeader}>
-                <View style={styles.connectedHealthLeft}>
-                  <View style={styles.connectedHealthIconBox}>
-                    <Activity color="#00BFA5" size={20} />
-                  </View>
-                  <View>
-                    <Text style={styles.connectedHealthTitle}>Connected Health</Text>
-                    <Text style={styles.connectedHealthSub}>Google Health Connect • Active</Text>
-                  </View>
-                </View>
-                <View style={styles.connectedHealthBadge}>
-                  <ShieldCheck color="#00E676" size={13} style={{ marginRight: 4 }} />
-                  <Text style={styles.connectedHealthBadgeText}>Synced</Text>
-                </View>
-              </View>
-
-              <Text style={styles.connectedHealthDesc}>
-                Biometric telemetry (Heart Rate, Steps, Active Calories & Sleep) is linked with your profile.
-              </Text>
-
-              <View style={styles.connectedHealthButtonsRow}>
-                <TouchableOpacity
-                  style={styles.openDashboardButton}
-                  onPress={() => navigation?.navigate('HealthDashboard')}
-                  activeOpacity={0.8}
-                >
-                  <Heart color="#00BFA5" size={16} style={{ marginRight: 6 }} />
-                  <Text style={styles.openDashboardButtonText}>View Health Telemetry</Text>
-                  <ChevronRight color="#00BFA5" size={16} style={{ marginLeft: 2 }} />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.quickSyncSmallButton, isSyncing && { opacity: 0.6 }]}
-                  onPress={handleSyncNow}
-                  disabled={isSyncing}
-                  activeOpacity={0.8}
-                >
-                  {isSyncing ? (
-                    <ActivityIndicator size="small" color="#001F27" />
-                  ) : (
-                    <>
-                      <RefreshCw color="#001F27" size={14} style={{ marginRight: 5 }} />
-                      <Text style={styles.quickSyncSmallButtonText}>Sync Now</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
               </View>
             </View>
 
-            {/* 9. Device Information */}
+            {/* 8. Device Information */}
             <View style={styles.sectionCard}>
               <Text style={styles.sectionCardTitle}>Device Information</Text>
               <View style={styles.infoList}>
@@ -359,41 +218,50 @@ export default function DeviceScreen({ navigation }) {
                   <Text style={styles.infoValue}>{activeProfile?.name}'s Band</Text>
                 </View>
                 <View style={styles.infoRow}>
-                  <Text style={styles.infoLabel}>Connection</Text>
-                  <Text style={styles.infoValue}>Bluetooth Low Energy</Text>
+                  <Text style={styles.infoLabel}>Connection Day & Time</Text>
+                  <Text style={styles.infoValue}>{formatConnectedDateTime(lastSyncedTime)}</Text>
+                </View>
+                <View style={styles.infoRow}>
+                  <Text style={styles.infoLabel}>Protocol</Text>
+                  <Text style={styles.infoValue}>Bluetooth Low Energy 5.2</Text>
                 </View>
                 <View style={styles.infoRow}>
                   <Text style={styles.infoLabel}>Battery Level</Text>
-                  <Text style={styles.infoValue}>{batteryLevel}%</Text>
+                  <Text style={styles.infoValue}>{batteryLevel !== null ? `${batteryLevel}%` : '--'}</Text>
                 </View>
                 <View style={[styles.infoRow, { borderBottomWidth: 0 }]}>
-                  <Text style={styles.infoLabel}>Real-Time Sensor</Text>
-                  <Text style={styles.infoValue}>Heart Rate & SpO2 Active</Text>
+                  <Text style={styles.infoLabel}>Hardware Sensors</Text>
+                  <Text style={styles.infoValue}>Optical PPG & Accelerometer</Text>
                 </View>
               </View>
             </View>
 
-            {/* 10. Device Management Actions */}
+            {/* 9. Device Management Actions */}
             <View style={styles.sectionCard}>
               <Text style={styles.sectionCardTitle}>Device Management</Text>
 
-              <TouchableOpacity
-                style={styles.actionRow}
-                onPress={() => navigation?.navigate('HealthDashboard')}
-                activeOpacity={0.7}
-              >
+              {/* Bluetooth Switch */}
+              <View style={styles.actionRow}>
                 <View style={styles.actionRowLeft}>
-                  <View style={[styles.actionIconBox, { backgroundColor: 'rgba(0, 191, 165, 0.12)' }]}>
-                    <Activity color="#00BFA5" size={18} />
+                  <View style={[styles.actionIconBox, { backgroundColor: isBluetoothConnected ? 'rgba(0, 191, 165, 0.12)' : 'rgba(255, 82, 82, 0.12)' }]}>
+                    <Bluetooth color={isBluetoothConnected ? "#00BFA5" : "#FF5252"} size={18} />
                   </View>
                   <View>
-                    <Text style={styles.actionTitle}>Connected Health Dashboard</Text>
-                    <Text style={styles.actionSubtitle}>Health Connect telemetry & sensor charts</Text>
+                    <Text style={styles.actionTitle}>Bluetooth Connection</Text>
+                    <Text style={styles.actionSubtitle}>
+                      {isBluetoothConnected ? 'Band connected & transmitting' : 'Bluetooth off — Band disconnected'}
+                    </Text>
                   </View>
                 </View>
-                <ChevronRight color="#8FAAB2" size={18} />
-              </TouchableOpacity>
+                <Switch
+                  value={isBluetoothConnected}
+                  onValueChange={(val) => toggleBluetooth?.(val)}
+                  trackColor={{ false: '#37474F', true: 'rgba(0, 191, 165, 0.4)' }}
+                  thumbColor={isBluetoothConnected ? '#00BFA5' : '#8FAAB2'}
+                />
+              </View>
 
+              {/* Connection Settings */}
               <TouchableOpacity
                 style={styles.actionRow}
                 onPress={handleConnectionSettings}
@@ -401,33 +269,17 @@ export default function DeviceScreen({ navigation }) {
               >
                 <View style={styles.actionRowLeft}>
                   <View style={[styles.actionIconBox, { backgroundColor: 'rgba(0, 191, 165, 0.12)' }]}>
-                    <Bluetooth color="#00BFA5" size={18} />
+                    <HelpCircle color="#00BFA5" size={18} />
                   </View>
                   <View>
                     <Text style={styles.actionTitle}>Connection Settings</Text>
-                    <Text style={styles.actionSubtitle}>Manage Bluetooth and auto-sync</Text>
+                    <Text style={styles.actionSubtitle}>BLE protocol, MTU & signal diagnostics</Text>
                   </View>
                 </View>
                 <ChevronRight color="#8FAAB2" size={18} />
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.actionRow}
-                onPress={handleSyncNow}
-                activeOpacity={0.7}
-              >
-                <View style={styles.actionRowLeft}>
-                  <View style={[styles.actionIconBox, { backgroundColor: 'rgba(41, 182, 246, 0.12)' }]}>
-                    <RefreshCw color="#29B6F6" size={18} />
-                  </View>
-                  <View>
-                    <Text style={styles.actionTitle}>Sync Health Data</Text>
-                    <Text style={styles.actionSubtitle}>Force immediate telemetry update</Text>
-                  </View>
-                </View>
-                <ChevronRight color="#8FAAB2" size={18} />
-              </TouchableOpacity>
-
+              {/* Remove Device */}
               <TouchableOpacity
                 style={[styles.actionRow, styles.dangerActionRow]}
                 onPress={handleRemoveDevice}
@@ -684,6 +536,24 @@ const styles = StyleSheet.create({
     color: '#00E676',
     fontSize: 11.5,
     fontWeight: '600',
+  },
+  btToggleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  btToggleBtnOn: {
+    backgroundColor: '#00BFA5',
+  },
+  btToggleBtnOff: {
+    backgroundColor: '#C62828',
+  },
+  btToggleBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 
   // Stats Grid
