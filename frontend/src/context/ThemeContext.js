@@ -31,6 +31,7 @@ export const DARK_THEME = {
   textAccent: '#00BFA5',
   textDanger: '#FF4B4B',
   textSuccess: '#00E676',
+  textOnAccent: '#001F27',
   // Accent
   accent: '#00BFA5',
   accentBright: '#00E676',
@@ -62,12 +63,13 @@ export const LIGHT_THEME = {
   borderSub: 'rgba(30,136,229,0.09)',
   borderFaint: 'rgba(30,136,229,0.06)',
   // Text
-  textPrimary: '#0D1B2A',
-  textSecondary: '#3A6186',
-  textMuted: '#7A9BB5',
+  textPrimary: '#1F2937', // Standard dark gray/slate for readability
+  textSecondary: '#4B5563',
+  textMuted: '#9CA3AF',
   textAccent: '#1E88E5',
   textDanger: '#C62828',
   textSuccess: '#00796B',
+  textOnAccent: '#FFFFFF',
   // Accent
   accent: '#1E88E5',
   accentBright: '#29B6F6',
