@@ -15,22 +15,25 @@ import RegisterScreen from '../screens/RegisterScreen';
 import FamilySetupScreen from '../screens/FamilySetupScreen';
 import HealthDashboardScreen from '../modules/health/screens/HealthDashboardScreen';
 import { ProfileProvider } from '../context/ProfileContext';
+import { ThemeProvider, useTheme } from '../context/ThemeContext';
 import Toast from '../components/Toast';
 import CustomModal from '../components/CustomModal';
+import { requestNotificationPermissions } from '../services/notificationService';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function MainTabs() {
+  const { theme } = useTheme();
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#00BFA5',
-        tabBarInactiveTintColor: '#7A9EA8',
+        tabBarActiveTintColor: theme.tabActive,
+        tabBarInactiveTintColor: theme.tabInactive,
         tabBarStyle: {
-          backgroundColor: '#00252F',
+          backgroundColor: theme.bgNavBar,
           borderTopWidth: 1,
-          borderTopColor: 'rgba(122, 158, 168, 0.14)',
+          borderTopColor: theme.border,
           paddingBottom: Platform.OS === 'ios' ? 20 : 8,
           paddingTop: 8,
           height: Platform.OS === 'ios' ? 76 : 64,
@@ -97,27 +100,41 @@ function MainTabs() {
     </Tab.Navigator>
   );
 }
- 
-export default function AppNavigator() {
+
+function AppStack() {
+  const { theme } = useTheme();
   return (
-    <ProfileProvider>
-      <NavigationContainer>
-        <Stack.Navigator
-          initialRouteName="Login"
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: '#001F27' },
-          }}
-        >
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Register" component={RegisterScreen} />
-          <Stack.Screen name="FamilySetup" component={FamilySetupScreen} />
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-          <Stack.Screen name="HealthDashboard" component={HealthDashboardScreen} />
-        </Stack.Navigator>
-      </NavigationContainer>
-      <Toast />
-      <CustomModal />
-    </ProfileProvider>
+    <Stack.Navigator
+      initialRouteName="Login"
+      screenOptions={{
+        headerShown: false,
+        contentStyle: { backgroundColor: theme.bg },
+      }}
+    >
+      <Stack.Screen name="Login" component={LoginScreen} />
+      <Stack.Screen name="Register" component={RegisterScreen} />
+      <Stack.Screen name="FamilySetup" component={FamilySetupScreen} />
+      <Stack.Screen name="MainTabs" component={MainTabs} />
+      <Stack.Screen name="HealthDashboard" component={HealthDashboardScreen} />
+    </Stack.Navigator>
   );
 }
+
+export default function AppNavigator() {
+  React.useEffect(() => {
+    requestNotificationPermissions();
+  }, []);
+
+  return (
+    <ThemeProvider>
+      <ProfileProvider>
+        <NavigationContainer>
+          <AppStack />
+        </NavigationContainer>
+        <Toast />
+        <CustomModal />
+      </ProfileProvider>
+    </ThemeProvider>
+  );
+}
+

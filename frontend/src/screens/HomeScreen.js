@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import { useTheme } from '../context/ThemeContext';
 import Svg, { Circle } from 'react-native-svg';
 import {
   Watch,
@@ -23,6 +24,7 @@ import { useProfile } from '../context/ProfileContext';
 
 export default function HomeScreen({ navigation }) {
   const { activeProfile, refreshHealthData, refreshFamily, syncHealthData, lastSyncedTime } = useProfile();
+  const { theme } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
   const formatLastSynced = (date) => {
@@ -79,25 +81,25 @@ export default function HomeScreen({ navigation }) {
   const offsetInner = cInner * (1 - Math.min(1, moveValue / moveGoal));
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* 1. Header / Band Status */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.bgCard, borderBottomColor: theme.borderSub }]}>
         <TouchableOpacity
           style={styles.headerBandChip}
           onPress={() => navigation?.navigate('Device')}
           activeOpacity={0.8}
         >
           <View style={styles.watchIconContainer}>
-            <Watch color="#00BFA5" size={16} />
+            <Watch color={theme.accent} size={16} />
           </View>
           <View style={styles.bandInfoCol}>
             <View style={styles.bandNameRow}>
-              <Text style={styles.bandNameText} numberOfLines={1}>
+              <Text style={[styles.bandNameText, { color: theme.textPrimary }]} numberOfLines={1}>
                 {activeProfile.name}'s Band
               </Text>
               <View style={styles.batteryChip}>
-                <Battery color="#8FAAB2" size={12} style={{ marginRight: 3 }} />
-                <Text style={styles.batteryText}>
+                <Battery color={theme.textSecondary} size={12} style={{ marginRight: 3 }} />
+                <Text style={[styles.batteryText, { color: theme.textSecondary }]}>
                   {activeProfile.battery !== null && activeProfile.battery !== undefined
                     ? `${activeProfile.battery}%`
                     : '--'}
@@ -106,17 +108,17 @@ export default function HomeScreen({ navigation }) {
             </View>
             <View style={styles.statusRow}>
               <View style={styles.greenStatusDot} />
-              <Text style={styles.statusLabel}>Connected</Text>
+              <Text style={[styles.statusLabel, { color: theme.textSuccess }]}>Connected</Text>
             </View>
           </View>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.chatButton}
+          style={[styles.chatButton, { backgroundColor: theme.bg, borderColor: theme.border }]}
           onPress={() => navigation?.navigate('FamilySetup')}
           activeOpacity={0.8}
         >
-          <MessageSquare color="#FFFFFF" size={18} />
+          <MessageSquare color={theme.textPrimary} size={18} />
         </TouchableOpacity>
       </View>
 
@@ -137,24 +139,24 @@ export default function HomeScreen({ navigation }) {
       >
         {/* 2. Page Title */}
         <View style={styles.pageTitleSection}>
-          <Text style={styles.pageTitle}>Health Overview</Text>
-          <Text style={styles.pageSubtitle}>Today's health & activity</Text>
+          <Text style={[styles.pageTitle, { color: theme.textPrimary }]}>Health Overview</Text>
+          <Text style={[styles.pageSubtitle, { color: theme.textSecondary }]}>Today's health & activity</Text>
         </View>
 
         {/* 4. Live Status Card */}
-        <View style={styles.liveStatusCard}>
+        <View style={[styles.liveStatusCard, { backgroundColor: theme.bgCard, borderColor: theme.bgTagBorder }]}>
           <View style={styles.liveStatusLeft}>
             <View style={styles.livePulseDotContainer}>
               <View style={styles.livePulseOuter} />
               <View style={styles.livePulseInner} />
             </View>
             <View style={styles.liveStatusTextCol}>
-              <Text style={styles.liveStatusTitle}>
+              <Text style={[styles.liveStatusTitle, { color: theme.textPrimary }]}>
                 {activeProfile.name} is active now
               </Text>
               <View style={styles.liveStatusSubRow}>
-                <Watch color="#00BFA5" size={13} style={{ marginRight: 4 }} />
-                <Text style={styles.liveStatusSubtitle}>{formatLastSynced(lastSyncedTime)}</Text>
+                <Watch color={theme.accent} size={13} style={{ marginRight: 4 }} />
+                <Text style={[styles.liveStatusSubtitle, { color: theme.textSecondary }]}>{formatLastSynced(lastSyncedTime)}</Text>
               </View>
             </View>
           </View>
@@ -165,71 +167,71 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* 5. Main Health Summary Card ("Today's Activity") */}
-        <View style={styles.sectionCard}>
+        <View style={[styles.sectionCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
           <View style={styles.cardHeaderRow}>
-            <Text style={styles.cardHeaderTitle}>Today's Activity</Text>
-            <Text style={styles.cardHeaderTag}>Summary</Text>
+            <Text style={[styles.cardHeaderTitle, { color: theme.textPrimary }]}>Today's Activity</Text>
+            <Text style={[styles.cardHeaderTag, { color: theme.textSecondary }]}>Summary</Text>
           </View>
 
           <View style={styles.metricsGrid}>
             {/* Metric 1: Calories */}
-            <View style={styles.metricTile}>
+            <View style={[styles.metricTile, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
               <View style={[styles.metricIconBox, { backgroundColor: 'rgba(255, 82, 82, 0.12)' }]}>
                 <Flame color="#FF5252" size={18} />
               </View>
               <View style={styles.metricValueRow}>
-                <Text style={styles.metricValue}>{calValue}</Text>
-                <Text style={styles.metricUnit}>kcal</Text>
+                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{calValue}</Text>
+                <Text style={[styles.metricUnit, { color: theme.textSecondary }]}>kcal</Text>
               </View>
-              <Text style={styles.metricLabel}>Calories</Text>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Calories</Text>
             </View>
 
             {/* Metric 2: Workout */}
-            <View style={styles.metricTile}>
+            <View style={[styles.metricTile, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
               <View style={[styles.metricIconBox, { backgroundColor: 'rgba(0, 230, 118, 0.12)' }]}>
                 <Activity color="#00E676" size={18} />
               </View>
               <View style={styles.metricValueRow}>
-                <Text style={styles.metricValue}>{workValue}</Text>
-                <Text style={styles.metricUnit}>min</Text>
+                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{workValue}</Text>
+                <Text style={[styles.metricUnit, { color: theme.textSecondary }]}>min</Text>
               </View>
-              <Text style={styles.metricLabel}>Workout</Text>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Workout</Text>
             </View>
 
             {/* Metric 3: Steps */}
-            <View style={styles.metricTile}>
+            <View style={[styles.metricTile, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
               <View style={[styles.metricIconBox, { backgroundColor: 'rgba(0, 191, 165, 0.12)' }]}>
                 <Footprints color="#00BFA5" size={18} />
               </View>
               <View style={styles.metricValueRow}>
-                <Text style={styles.metricValue}>{(m.steps || 0).toLocaleString()}</Text>
-                <Text style={styles.metricUnit}>steps</Text>
+                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{(m.steps || 0).toLocaleString()}</Text>
+                <Text style={[styles.metricUnit, { color: theme.textSecondary }]}>steps</Text>
               </View>
-              <Text style={styles.metricLabel}>Steps</Text>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Steps</Text>
             </View>
 
             {/* Metric 4: Move Hours */}
-            <View style={styles.metricTile}>
+            <View style={[styles.metricTile, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
               <View style={[styles.metricIconBox, { backgroundColor: 'rgba(41, 182, 246, 0.12)' }]}>
                 <Clock color="#29B6F6" size={18} />
               </View>
               <View style={styles.metricValueRow}>
-                <Text style={styles.metricValue}>{moveValue}</Text>
-                <Text style={styles.metricUnit}>hrs</Text>
+                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{moveValue}</Text>
+                <Text style={[styles.metricUnit, { color: theme.textSecondary }]}>hrs</Text>
               </View>
-              <Text style={styles.metricLabel}>Move Hours</Text>
+              <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Move Hours</Text>
             </View>
           </View>
         </View>
 
         {/* 6 & 7. Daily Goals & Activity Rings */}
-        <View style={styles.sectionCard}>
+        <View style={[styles.sectionCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
           <View style={styles.cardHeaderRow}>
             <View style={styles.titleWithIcon}>
-              <Target color="#00BFA5" size={18} style={{ marginRight: 6 }} />
-              <Text style={styles.cardHeaderTitle}>Daily Goals</Text>
+              <Target color={theme.accent} size={18} style={{ marginRight: 6 }} />
+              <Text style={[styles.cardHeaderTitle, { color: theme.textPrimary }]}>Daily Goals</Text>
             </View>
-            <Text style={styles.cardHeaderTag}>Target Progress</Text>
+            <Text style={[styles.cardHeaderTag, { color: theme.textSecondary }]}>Target Progress</Text>
           </View>
 
           {/* Centered Circular Activity Visualization */}
@@ -303,30 +305,30 @@ export default function HomeScreen({ navigation }) {
             </Svg>
 
             {/* Center Icon */}
-            <View style={styles.ringCenterIcon}>
-              <Flame color="#00BFA5" size={20} />
+            <View style={[styles.ringCenterIcon, { backgroundColor: theme.bgCardDeep, borderColor: theme.bgTagBorder }]}>
+              <Flame color={theme.accent} size={20} />
             </View>
           </View>
 
           {/* Goal Progress Breakdown */}
           <View style={styles.goalProgressList}>
             {/* Calories Goal */}
-            <View style={styles.goalItem}>
+            <View style={[styles.goalItem, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderFaint }]}>
               <View style={styles.goalItemHeader}>
                 <View style={styles.goalItemTitleRow}>
                   <View style={[styles.goalIndicatorDot, { backgroundColor: '#FF5252' }]} />
-                  <Text style={styles.goalItemName}>Calories</Text>
+                  <Text style={[styles.goalItemName, { color: theme.textPrimary }]}>Calories</Text>
                 </View>
                 <View style={styles.goalItemValueRow}>
-                  <Text style={styles.goalItemValues}>
-                    {calValue} <Text style={styles.goalItemTarget}>/ {calGoal} kcal</Text>
+                  <Text style={[styles.goalItemValues, { color: theme.textPrimary }]}>
+                    {calValue} <Text style={[styles.goalItemTarget, { color: theme.textSecondary }]}>/ {calGoal} kcal</Text>
                   </Text>
                   <View style={[styles.pctBadge, { backgroundColor: 'rgba(255, 82, 82, 0.14)' }]}>
                     <Text style={[styles.pctBadgeText, { color: '#FF5252' }]}>{calPct}%</Text>
                   </View>
                 </View>
               </View>
-              <View style={styles.progressBarTrack}>
+              <View style={[styles.progressBarTrack, { backgroundColor: theme.bgProgressTrack }]}>
                 <View
                   style={[
                     styles.progressBarFill,
@@ -337,22 +339,22 @@ export default function HomeScreen({ navigation }) {
             </View>
 
             {/* Workout Goal */}
-            <View style={styles.goalItem}>
+            <View style={[styles.goalItem, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderFaint }]}>
               <View style={styles.goalItemHeader}>
                 <View style={styles.goalItemTitleRow}>
                   <View style={[styles.goalIndicatorDot, { backgroundColor: '#00E676' }]} />
-                  <Text style={styles.goalItemName}>Workout</Text>
+                  <Text style={[styles.goalItemName, { color: theme.textPrimary }]}>Workout</Text>
                 </View>
                 <View style={styles.goalItemValueRow}>
-                  <Text style={styles.goalItemValues}>
-                    {workValue} <Text style={styles.goalItemTarget}>/ {workGoal} min</Text>
+                  <Text style={[styles.goalItemValues, { color: theme.textPrimary }]}>
+                    {workValue} <Text style={[styles.goalItemTarget, { color: theme.textSecondary }]}>/ {workGoal} min</Text>
                   </Text>
                   <View style={[styles.pctBadge, { backgroundColor: 'rgba(0, 230, 118, 0.14)' }]}>
                     <Text style={[styles.pctBadgeText, { color: '#00E676' }]}>{workPct}%</Text>
                   </View>
                 </View>
               </View>
-              <View style={styles.progressBarTrack}>
+              <View style={[styles.progressBarTrack, { backgroundColor: theme.bgProgressTrack }]}>
                 <View
                   style={[
                     styles.progressBarFill,
@@ -363,22 +365,22 @@ export default function HomeScreen({ navigation }) {
             </View>
 
             {/* Movement Goal */}
-            <View style={styles.goalItem}>
+            <View style={[styles.goalItem, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderFaint }]}>
               <View style={styles.goalItemHeader}>
                 <View style={styles.goalItemTitleRow}>
                   <View style={[styles.goalIndicatorDot, { backgroundColor: '#29B6F6' }]} />
-                  <Text style={styles.goalItemName}>Movement</Text>
+                  <Text style={[styles.goalItemName, { color: theme.textPrimary }]}>Movement</Text>
                 </View>
                 <View style={styles.goalItemValueRow}>
-                  <Text style={styles.goalItemValues}>
-                    {moveValue} <Text style={styles.goalItemTarget}>/ {moveGoal} hrs</Text>
+                  <Text style={[styles.goalItemValues, { color: theme.textPrimary }]}>
+                    {moveValue} <Text style={[styles.goalItemTarget, { color: theme.textSecondary }]}>/ {moveGoal} hrs</Text>
                   </Text>
                   <View style={[styles.pctBadge, { backgroundColor: 'rgba(41, 182, 246, 0.14)' }]}>
                     <Text style={[styles.pctBadgeText, { color: '#29B6F6' }]}>{movePct}%</Text>
                   </View>
                 </View>
               </View>
-              <View style={styles.progressBarTrack}>
+              <View style={[styles.progressBarTrack, { backgroundColor: theme.bgProgressTrack }]}>
                 <View
                   style={[
                     styles.progressBarFill,
@@ -391,19 +393,19 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* 8. Health Insights */}
-        <View style={styles.sectionCard}>
+        <View style={[styles.sectionCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
           <View style={styles.cardHeaderRow}>
             <View style={styles.titleWithIcon}>
-              <Activity color="#00BFA5" size={18} style={{ marginRight: 6 }} />
-              <Text style={styles.cardHeaderTitle}>Health Insights</Text>
+              <Activity color={theme.accent} size={18} style={{ marginRight: 6 }} />
+              <Text style={[styles.cardHeaderTitle, { color: theme.textPrimary }]}>Health Insights</Text>
             </View>
-            <Text style={styles.cardHeaderTag}>Vitals</Text>
+            <Text style={[styles.cardHeaderTag, { color: theme.textSecondary }]}>Vitals</Text>
           </View>
 
           <View style={styles.insightsGrid}>
             {/* Insight 1: Heart Rate */}
             <TouchableOpacity
-              style={styles.insightCard}
+              style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}
               activeOpacity={0.8}
               onPress={() => navigation?.navigate('HealthDashboard')}
             >
@@ -417,10 +419,10 @@ export default function HomeScreen({ navigation }) {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.insightName}>Heart Rate</Text>
+              <Text style={[styles.insightName, { color: theme.textSecondary }]}>Heart Rate</Text>
               <View style={styles.insightValueRow}>
-                <Text style={styles.insightMainVal}>{m.heartRate ? m.heartRate : '--'}</Text>
-                <Text style={styles.insightValUnit}>BPM</Text>
+                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{m.heartRate ? m.heartRate : '--'}</Text>
+                <Text style={[styles.insightValUnit, { color: theme.textSecondary }]}>BPM</Text>
               </View>
               {/* Mini pulse bars */}
               <View style={styles.waveformContainer}>
@@ -433,7 +435,7 @@ export default function HomeScreen({ navigation }) {
             </TouchableOpacity>
 
             {/* Insight 2: Sleep */}
-            <View style={styles.insightCard}>
+            <View style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(171, 71, 188, 0.12)' }]}>
                   <Moon color="#AB47BC" size={16} />
@@ -444,17 +446,17 @@ export default function HomeScreen({ navigation }) {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.insightName}>Sleep</Text>
+              <Text style={[styles.insightName, { color: theme.textSecondary }]}>Sleep</Text>
               <View style={styles.insightValueRow}>
-                <Text style={styles.insightMainVal}>{m.sleepDuration ? m.sleepDuration : '--'}</Text>
+                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{m.sleepDuration ? m.sleepDuration : '--'}</Text>
               </View>
-              <Text style={styles.insightNote}>
+              <Text style={[styles.insightNote, { color: theme.textMuted }]}>
                 {m.sleepDuration ? 'Optimal recovery' : 'Wear band during sleep'}
               </Text>
             </View>
 
             {/* Insight 3: Steps */}
-            <View style={styles.insightCard}>
+            <View style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(0, 191, 165, 0.12)' }]}>
                   <Footprints color="#00BFA5" size={16} />
@@ -465,15 +467,15 @@ export default function HomeScreen({ navigation }) {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.insightName}>Daily Steps</Text>
+              <Text style={[styles.insightName, { color: theme.textSecondary }]}>Daily Steps</Text>
               <View style={styles.insightValueRow}>
-                <Text style={styles.insightMainVal}>{(m.steps || 0).toLocaleString()}</Text>
+                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{(m.steps || 0).toLocaleString()}</Text>
               </View>
-              <Text style={styles.insightNote}>Goal: 10,000</Text>
+              <Text style={[styles.insightNote, { color: theme.textMuted }]}>Goal: 10,000</Text>
             </View>
 
             {/* Insight 4: SpO2 Blood Oxygen */}
-            <View style={styles.insightCard}>
+            <View style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(41, 182, 246, 0.12)' }]}>
                   <Droplets color="#29B6F6" size={16} />
@@ -484,18 +486,18 @@ export default function HomeScreen({ navigation }) {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.insightName}>Blood Oxygen</Text>
+              <Text style={[styles.insightName, { color: theme.textSecondary }]}>Blood Oxygen</Text>
               <View style={styles.insightValueRow}>
-                <Text style={styles.insightMainVal}>{m.oxygen ? m.oxygen : '--'}</Text>
-                <Text style={styles.insightValUnit}>%</Text>
+                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{m.oxygen ? m.oxygen : '--'}</Text>
+                <Text style={[styles.insightValUnit, { color: theme.textSecondary }]}>%</Text>
               </View>
-              <Text style={styles.insightNote}>
+              <Text style={[styles.insightNote, { color: theme.textMuted }]}>
                 {m.oxygen ? 'Healthy saturation' : 'Sync to record SpO2'}
               </Text>
             </View>
 
             {/* Insight 5: HRV Recovery */}
-            <View style={styles.insightCard}>
+            <View style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(0, 230, 118, 0.12)' }]}>
                   <Zap color="#00E676" size={16} />
@@ -506,18 +508,18 @@ export default function HomeScreen({ navigation }) {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.insightName}>Heart Rate Var</Text>
+              <Text style={[styles.insightName, { color: theme.textSecondary }]}>Heart Rate Var</Text>
               <View style={styles.insightValueRow}>
-                <Text style={styles.insightMainVal}>{m.hrv ? m.hrv : '--'}</Text>
-                <Text style={styles.insightValUnit}>ms</Text>
+                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{m.hrv ? m.hrv : '--'}</Text>
+                <Text style={[styles.insightValUnit, { color: theme.textSecondary }]}>ms</Text>
               </View>
-              <Text style={styles.insightNote}>
+              <Text style={[styles.insightNote, { color: theme.textMuted }]}>
                 {m.hrv ? 'Pebble RMSSD score' : 'Sync to record HRV'}
               </Text>
             </View>
 
             {/* Insight 6: Distance */}
-            <View style={styles.insightCard}>
+            <View style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(255, 167, 38, 0.12)' }]}>
                   <Compass color="#FFA726" size={16} />
@@ -528,12 +530,12 @@ export default function HomeScreen({ navigation }) {
                   </Text>
                 </View>
               </View>
-              <Text style={styles.insightName}>Distance</Text>
+              <Text style={[styles.insightName, { color: theme.textSecondary }]}>Distance</Text>
               <View style={styles.insightValueRow}>
-                <Text style={styles.insightMainVal}>{m.distance !== null && m.distance !== undefined ? m.distance : '--'}</Text>
-                <Text style={styles.insightValUnit}>km</Text>
+                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{m.distance !== null && m.distance !== undefined ? m.distance : '--'}</Text>
+                <Text style={[styles.insightValUnit, { color: theme.textSecondary }]}>km</Text>
               </View>
-              <Text style={styles.insightNote}>
+              <Text style={[styles.insightNote, { color: theme.textMuted }]}>
                 {m.distance ? 'Pebble activity distance' : 'Sync to record distance'}
               </Text>
             </View>
@@ -547,7 +549,6 @@ export default function HomeScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#001F27',
   },
   // 1. Compact Header
   header: {
@@ -557,9 +558,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 42,
     paddingBottom: 10,
-    backgroundColor: '#002833',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(122, 158, 168, 0.1)',
   },
   headerBandChip: {
     flexDirection: 'row',
@@ -590,7 +589,6 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   bandNameText: {
-    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
   },
@@ -603,7 +601,6 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
   },
   batteryText: {
-    color: '#8FAAB2',
     fontSize: 10,
     fontWeight: '600',
   },
@@ -620,7 +617,6 @@ const styles = StyleSheet.create({
     marginRight: 4,
   },
   statusLabel: {
-    color: '#00E676',
     fontSize: 11,
     fontWeight: '600',
   },
@@ -628,11 +624,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#001F27',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(122, 158, 168, 0.25)',
   },
 
   // Scroll Body
@@ -647,20 +641,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   pageTitle: {
-    color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '800',
     letterSpacing: -0.3,
   },
   pageSubtitle: {
-    color: '#8FAAB2',
     fontSize: 12,
     marginTop: 2,
   },
 
   // 4. Live Status Card
   liveStatusCard: {
-    backgroundColor: '#002B36',
     borderRadius: 16,
     paddingHorizontal: 14,
     paddingVertical: 12,
@@ -669,7 +660,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: 'rgba(0, 191, 165, 0.22)',
   },
   liveStatusLeft: {
     flexDirection: 'row',
@@ -701,7 +691,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   liveStatusTitle: {
-    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
   },
@@ -711,7 +700,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   liveStatusSubtitle: {
-    color: '#8FAAB2',
     fontSize: 11,
   },
   liveBadge: {
@@ -732,12 +720,10 @@ const styles = StyleSheet.create({
 
   // Cards & Layout
   sectionCard: {
-    backgroundColor: '#002B36',
     borderRadius: 18,
     padding: 14,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: 'rgba(122, 158, 168, 0.15)',
   },
   cardHeaderRow: {
     flexDirection: 'row',
@@ -752,12 +738,10 @@ const styles = StyleSheet.create({
   cardHeaderTitle: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#FFFFFF',
     letterSpacing: 0.2,
   },
   cardHeaderTag: {
     fontSize: 11,
-    color: '#8FAAB2',
     fontWeight: '500',
   },
 
@@ -770,11 +754,9 @@ const styles = StyleSheet.create({
   },
   metricTile: {
     width: '48%',
-    backgroundColor: '#00232C',
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: 'rgba(122, 158, 168, 0.1)',
   },
   metricIconBox: {
     width: 32,
@@ -792,16 +774,13 @@ const styles = StyleSheet.create({
   metricValue: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#FFFFFF',
   },
   metricUnit: {
     fontSize: 11,
-    color: '#8FAAB2',
     fontWeight: '600',
   },
   metricLabel: {
     fontSize: 12,
-    color: '#8FAAB2',
     marginTop: 2,
     fontWeight: '500',
   },
@@ -818,11 +797,9 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#002028',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(0, 191, 165, 0.2)',
   },
 
   // 7. Goal Progress
@@ -831,11 +808,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   goalItem: {
-    backgroundColor: '#00232C',
     borderRadius: 12,
     padding: 10,
     borderWidth: 1,
-    borderColor: 'rgba(122, 158, 168, 0.08)',
   },
   goalItemHeader: {
     flexDirection: 'row',
@@ -856,7 +831,6 @@ const styles = StyleSheet.create({
   goalItemName: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#FFFFFF',
   },
   goalItemValueRow: {
     flexDirection: 'row',
@@ -866,11 +840,9 @@ const styles = StyleSheet.create({
   goalItemValues: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#FFFFFF',
   },
   goalItemTarget: {
     fontWeight: 'normal',
-    color: '#8FAAB2',
   },
   pctBadge: {
     paddingHorizontal: 5,
@@ -883,7 +855,6 @@ const styles = StyleSheet.create({
   },
   progressBarTrack: {
     height: 5,
-    backgroundColor: 'rgba(122, 158, 168, 0.15)',
     borderRadius: 2.5,
     overflow: 'hidden',
   },
@@ -901,11 +872,9 @@ const styles = StyleSheet.create({
   },
   insightCard: {
     width: '48%',
-    backgroundColor: '#00232C',
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: 'rgba(122, 158, 168, 0.1)',
   },
   insightHeaderRow: {
     flexDirection: 'row',
@@ -934,7 +903,6 @@ const styles = StyleSheet.create({
   insightName: {
     fontSize: 11.5,
     fontWeight: '600',
-    color: '#8FAAB2',
     marginTop: 2,
   },
   insightValueRow: {
@@ -946,16 +914,13 @@ const styles = StyleSheet.create({
   insightMainVal: {
     fontSize: 18,
     fontWeight: '800',
-    color: '#FFFFFF',
   },
   insightValUnit: {
     fontSize: 11,
-    color: '#8FAAB2',
     fontWeight: '600',
   },
   insightNote: {
     fontSize: 10,
-    color: '#6A8791',
     marginTop: 4,
   },
   waveformContainer: {

@@ -73,10 +73,11 @@ export const getMe = async (req, res, next) => {
 export const updateProfile = async (req, res, next) => {
     try {
         const user = req.user;
-        const { fullName, country, state } = req.body;
+        const { fullName, country, state, avatar } = req.body;
         if (fullName) user.fullName = fullName.trim();
         if (country !== undefined) user.country = country;
         if (state !== undefined) user.state = state;
+        if (avatar !== undefined) user.avatar = avatar;
         await user.save();
         res.status(200).json({
             success: true,
@@ -87,7 +88,25 @@ export const updateProfile = async (req, res, next) => {
                 accountType: user.accountType,
                 country: user.country,
                 state: user.state,
+                avatar: user.avatar,
             },
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const registerPushToken = async (req, res, next) => {
+    try {
+        const user = req.user;
+        const { pushToken } = req.body;
+        if (pushToken) {
+            user.pushToken = pushToken;
+            await user.save();
+        }
+        res.status(200).json({
+            success: true,
+            message: 'Push token registered successfully',
         });
     } catch (error) {
         next(error);

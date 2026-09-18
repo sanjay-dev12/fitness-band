@@ -3,7 +3,7 @@ import { findUserByIdentifier, createUser, findUserByName, findUserByGoogleId } 
 import { hashPassword, comparePassword } from '../../utils/password.js';
 import { generateToken } from '../../utils/jwt.js';
 
-const client = new OAuth2Client();
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 export const registerUser = async (userData) => {
     const existingUser = await findUserByIdentifier(userData.identifier);

@@ -62,14 +62,14 @@ const HealthRing = ({
 
   return (
     <View style={styles.container}>
-      <Animated.View style={[pulse && animatedPulseStyle, { alignItems: 'center', justifyContent: 'center' }]}>
+      <Animated.View style={[pulse ? animatedPulseStyle : null, { alignItems: 'center', justifyContent: 'center' }]}>
         <Svg width={radius * 2} height={radius * 2} viewBox={`0 0 ${radius * 2} ${radius * 2}`}>
           {/* Background Circle */}
           <Circle
             cx={radius}
             cy={radius}
             r={innerRadius}
-            stroke={`${color}33`} // 20% opacity background
+            stroke={`${color}33`}
             strokeWidth={strokeWidth}
             fill="transparent"
           />

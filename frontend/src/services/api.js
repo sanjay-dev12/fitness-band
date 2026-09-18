@@ -76,7 +76,7 @@ const getBaseUrl = () => {
   }
 
   // 3. Current PC Wi-Fi IP fallback (accessible by both Phone and PC)
-  return 'http://192.168.87.200:5000/api';
+  return 'http://10.72.97.243:5000/api';
 };
 
 export const API_BASE_URL = getBaseUrl();
@@ -373,6 +373,25 @@ export async function getFamilyApi() {
 }
 
 /**
+ * Remove a family member connection
+ */
+export async function removeFamilyMemberApi(connectionId) {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/family/${connectionId}`, {
+      method: 'DELETE',
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to remove family member.');
+    }
+    return data;
+  } catch (error) {
+    console.log('removeFamilyMemberApi error:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
  * Fetch a specific family member's health telemetry
  */
 export async function getFamilyMemberHealthApi(memberId) {
@@ -389,3 +408,45 @@ export async function getFamilyMemberHealthApi(memberId) {
   }
 }
 
+/**
+ * Register this device's Expo push token with the backend.
+ * @param {string} pushToken - Expo push token string
+ */
+export async function registerPushTokenApi(pushToken) {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/auth/push-token`, {
+      method: 'POST',
+      body: JSON.stringify({ pushToken }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to register push token.');
+    }
+    return data;
+  } catch (error) {
+    console.log('registerPushTokenApi error:', error.message);
+    return { success: false };
+  }
+}
+
+/**
+ * Send a low heart rate alert to connected family members via backend.
+ * The backend verifies the relationship and sends the push notification.
+ * @param {number} heartRate - current heart rate BPM
+ */
+export async function sendLowHrAlertApi(heartRate) {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/alert/low-hr`, {
+      method: 'POST',
+      body: JSON.stringify({ heartRate }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to send low HR alert.');
+    }
+    return data;
+  } catch (error) {
+    console.log('sendLowHrAlertApi error:', error.message);
+    return { success: false };
+  }
+}

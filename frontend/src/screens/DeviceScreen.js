@@ -23,6 +23,8 @@ import {
   AlertCircle,
 } from 'lucide-react-native';
 import { useProfile } from '../context/ProfileContext';
+import { useTheme } from '../context/ThemeContext';
+import { showLocalNotification } from '../services/notificationService';
 import {
   checkHealthPermissions,
   requestHealthPermissions,
@@ -38,10 +40,23 @@ export default function DeviceScreen({ navigation }) {
     showToast,
     syncHealthData,
     lastSyncedTime,
+    isBandConnected,
+    setBandConnected,
   } = useProfile();
+  const { theme } = useTheme();
 
-  const [isDeviceBound, setIsDeviceBound] = useState(true);
   const [syncStatus, setSyncStatus] = useState('ready'); // 'ready' | 'syncing' | 'success' | 'permission_required' | 'error'
+
+  // Ref to track previous connection state to trigger notification only on false -> true transition
+  const prevConnectedRef = React.useRef(isBandConnected);
+
+  React.useEffect(() => {
+    if (!prevConnectedRef.current && isBandConnected) {
+      // Transition from disconnected to connected
+      showLocalNotification('Band Connected', 'Your Hand Band is connected successfully.');
+    }
+    prevConnectedRef.current = isBandConnected;
+  }, [isBandConnected]);
 
   const batteryLevel = activeProfile?.battery || 98;
 
@@ -57,7 +72,7 @@ export default function DeviceScreen({ navigation }) {
   const handleSyncNow = async () => {
     if (syncStatus === 'syncing') return;
 
-    if (!isDeviceBound) {
+    if (!isBandConnected) {
       if (showToast) {
         showToast('Please connect your health band first', 'error');
       }
@@ -118,21 +133,20 @@ export default function DeviceScreen({ navigation }) {
         type: 'error',
         confirmText: 'Remove Device',
         onConfirm: () => {
-          setIsDeviceBound(false);
+          setBandConnected(false);
           if (showToast) {
             showToast('Device removed from your account', 'info');
           }
         },
       });
     } else {
-      setIsDeviceBound(false);
+      setBandConnected(false);
     }
   };
 
   const handleAddDevicePress = () => {
-    if (!isDeviceBound) {
-      setIsDeviceBound(true);
-      setLastSyncedText('Just now');
+    if (!isBandConnected) {
+      setBandConnected(true);
       if (showToast) {
         showToast('Band connected successfully via Bluetooth', 'success');
       }
@@ -164,12 +178,12 @@ export default function DeviceScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* 3. Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.bgCard, borderBottomColor: theme.borderSub }]}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Devices</Text>
-          <Text style={styles.headerSubtitle}>Manage your connected health bands</Text>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Devices</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>Manage your connected health bands</Text>
         </View>
         <View style={styles.headerIcons}>
           <TouchableOpacity
@@ -177,7 +191,7 @@ export default function DeviceScreen({ navigation }) {
             onPress={handleHelpPress}
             activeOpacity={0.7}
           >
-            <HelpCircle color="#8FAAB2" size={20} />
+            <HelpCircle color={theme.textSecondary} size={20} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.iconButton}
@@ -191,30 +205,30 @@ export default function DeviceScreen({ navigation }) {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* 4. Connection Status */}
-        <View style={[styles.statusCard, !isDeviceBound && styles.statusCardDisconnected]}>
+        <View style={[styles.statusCard, !isBandConnected && styles.statusCardDisconnected]}>
           <View style={styles.statusCardLeft}>
-            <View style={[styles.statusDot, !isDeviceBound && styles.statusDotDisconnected]} />
+            <View style={[styles.statusDot, !isBandConnected && styles.statusDotDisconnected]} />
             <View style={styles.statusTextCol}>
               <Text style={styles.statusTitle}>
-                {isDeviceBound ? 'Band Connected' : 'No Device Connected'}
+                {isBandConnected ? 'Band Connected' : 'No Device Connected'}
               </Text>
               <Text style={styles.statusSubtitle}>
-                {isDeviceBound
-                  ? isSyncing
+                {isBandConnected
+                  ? syncStatus === 'syncing'
                     ? 'Synchronizing health telemetry...'
                     : 'Syncing your health data'
                   : 'Connect a band to sync your telemetry'}
               </Text>
             </View>
           </View>
-          <View style={[styles.statusPill, !isDeviceBound && styles.statusPillDisconnected]}>
-            <Text style={[styles.statusPillText, !isDeviceBound && styles.statusPillTextDisconnected]}>
-              {isDeviceBound ? (isSyncing ? 'Syncing' : 'Connected') : 'Offline'}
+          <View style={[styles.statusPill, !isBandConnected && styles.statusPillDisconnected]}>
+            <Text style={[styles.statusPillText, !isBandConnected && styles.statusPillTextDisconnected]}>
+              {isBandConnected ? (syncStatus === 'syncing' ? 'Syncing' : 'Connected') : 'Offline'}
             </Text>
           </View>
         </View>
 
-        {isDeviceBound ? (
+        {isBandConnected ? (
           <>
             {/* 5. Connected Device Card */}
             <View style={styles.deviceCard}>

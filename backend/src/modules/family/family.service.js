@@ -5,6 +5,7 @@ import {
     findInviteByCode,
     findConnection,
     getConnectionsForUser,
+    deleteFamilyConnection,
 } from './family.repository.js';
 import { findUserByIdentifier } from '../user/user.repository.js';
 import User from '../user/user.model.js';
@@ -110,8 +111,13 @@ export const getMyFamily = async (userId) => {
     const enhanced = await Promise.all(connections.map(async (c) => {
         const plain = c.toJSON ? c.toJSON() : c;
         const otherUserId = plain.parentId === userId ? plain.childId : plain.parentId;
+        
+        // Directional Access Rule: Only childId is authorized to view parentId's data.
+        // If current user is parentId, they are NOT authorized to view childId's health.
+        const isAuthorizedToView = (plain.childId === userId);
+
         let latestHealth = null;
-        if (otherUserId) {
+        if (otherUserId && isAuthorizedToView) {
             latestHealth = await HealthData.findOne({
                 where: { userId: otherUserId },
                 order: [['recordedAt', 'DESC']]
@@ -119,9 +125,20 @@ export const getMyFamily = async (userId) => {
         }
         return {
             ...plain,
-            latestHealth: latestHealth ? (latestHealth.toJSON ? latestHealth.toJSON() : latestHealth) : null
+            latestHealth: latestHealth ? (latestHealth.toJSON ? latestHealth.toJSON() : latestHealth) : null,
+            isAuthorizedToView
         };
     }));
 
     return enhanced;
+};
+
+export const removeMember = async (connectionId, userId) => {
+    const deletedCount = await deleteFamilyConnection(connectionId, userId);
+    if (deletedCount === 0) {
+        const err = new Error('Connection not found or unauthorized');
+        err.statusCode = 404;
+        throw err;
+    }
+    return true;
 };

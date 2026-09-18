@@ -24,6 +24,7 @@ import {
   Zap,
 } from 'lucide-react-native';
 import { useProfile } from '../context/ProfileContext';
+import { useTheme } from '../context/ThemeContext';
 
 const WORKOUT_TYPES = [
   {
@@ -51,6 +52,7 @@ const WORKOUT_TYPES = [
 
 export default function ExerciseScreen() {
   const { activeProfile, showModal, showToast, syncHealthTelemetry } = useProfile();
+  const { theme } = useTheme();
   const m = activeProfile?.metrics || {};
 
   const [selectedWorkoutId, setSelectedWorkoutId] = useState('outdoor_run');
@@ -136,12 +138,12 @@ export default function ExerciseScreen() {
     const liveSteps = m.steps !== null && m.steps !== undefined ? m.steps.toLocaleString() : '--';
 
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.bg }]}>
         {/* Active Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { backgroundColor: theme.bgCard, borderBottomColor: theme.borderSub }]}>
           <View>
-            <Text style={styles.headerTitle}>{selectedWorkout.title}</Text>
-            <Text style={styles.headerSubtitle}>Workout in progress</Text>
+            <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>{selectedWorkout.title}</Text>
+            <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>Workout in progress</Text>
           </View>
           <View style={[styles.statusBadge, isPaused && styles.statusBadgePaused]}>
             <View style={[styles.liveDot, isPaused && styles.liveDotPaused]} />
@@ -239,12 +241,12 @@ export default function ExerciseScreen() {
 
   // Pre-Workout / Setup View
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* 2. Compact Professional Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.bgCard, borderBottomColor: theme.borderSub }]}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Exercise</Text>
-          <Text style={styles.headerSubtitle}>Choose a workout and start moving</Text>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Exercise</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>Choose a workout and start moving</Text>
         </View>
         <TouchableOpacity
           style={styles.headerActionBtn}
@@ -421,7 +423,7 @@ export default function ExerciseScreen() {
 
         {/* 9 & 10. Motivational Content & Contextual Progress */}
         <View style={styles.motivationalCard}>
-          {m.exerciseMins && m.exerciseMins > 0 ? (
+          {m.exerciseMins > 0 ? (
             <>
               <Text style={styles.motivationalTitle}>Great progress today!</Text>
               <Text style={styles.motivationalBody}>

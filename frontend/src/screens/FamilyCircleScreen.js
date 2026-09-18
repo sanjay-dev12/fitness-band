@@ -7,6 +7,7 @@ import {
   ScrollView,
   Image,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import {
   UserPlus,
@@ -18,12 +19,15 @@ import {
   Users,
   Watch,
   Plus,
+  Trash2,
 } from 'lucide-react-native';
 import ProfileSwitcher from '../components/ProfileSwitcher';
 import { useProfile } from '../context/ProfileContext';
+import { useTheme } from '../context/ThemeContext';
 
 export default function FamilyCircleScreen({ navigation }) {
-  const { profiles, activeProfileId, switchProfile, refreshFamily } = useProfile();
+  const { profiles, activeProfileId, switchProfile, refreshFamily, removeFamilyMemberProfile } = useProfile();
+  const { theme } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
 
   const onRefresh = async () => {
@@ -43,6 +47,21 @@ export default function FamilyCircleScreen({ navigation }) {
     if (navigation) {
       navigation.navigate('Home');
     }
+  };
+
+  const handleDeleteMember = (member) => {
+    Alert.alert(
+      'Remove Family Member',
+      `Are you sure you want to remove ${member.name} from your Family Circle?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Remove', 
+          style: 'destructive',
+          onPress: () => removeFamilyMemberProfile(member.id)
+        },
+      ]
+    );
   };
 
   // Real family circle members (excluding primary account owner)
@@ -66,12 +85,12 @@ export default function FamilyCircleScreen({ navigation }) {
     ) || [];
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* 3. Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.bgCard, borderBottomColor: theme.borderSub }]}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Family</Text>
-          <Text style={styles.headerSubtitle}>
+          <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>Family</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.textSecondary }]}>
             Stay connected with your family's health
           </Text>
         </View>
@@ -100,11 +119,11 @@ export default function FamilyCircleScreen({ navigation }) {
         }
       >
         {/* 4 & 18. Family Health Summary & Pulse Card */}
-        <View style={styles.pulseCard}>
+        <View style={[styles.pulseCard, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
           <View style={styles.pulseCardHeader}>
             <View style={styles.pulseTitleRow}>
-              <Activity color="#00BFA5" size={16} style={{ marginRight: 6 }} />
-              <Text style={styles.pulseCardTitle}>Family Health Pulse</Text>
+              <Activity color={theme.accent} size={16} style={{ marginRight: 6 }} />
+              <Text style={[styles.pulseCardTitle, { color: theme.textPrimary }]}>Family Health Pulse</Text>
             </View>
             <View style={styles.pulseOnlineBadge}>
               <Text style={styles.pulseOnlineBadgeText}>
@@ -117,15 +136,15 @@ export default function FamilyCircleScreen({ navigation }) {
           <View style={styles.pulseDotsRow}>
             <View style={styles.pulseStatItem}>
               <View style={[styles.pulseDot, { backgroundColor: '#00E676' }]} />
-              <Text style={styles.pulseStatText}>{connectedCount} Connected</Text>
+              <Text style={[styles.pulseStatText, { color: theme.textPrimary }]}>{connectedCount} Connected</Text>
             </View>
             <View style={styles.pulseStatItem}>
               <View style={[styles.pulseDot, { backgroundColor: '#00BFA5' }]} />
-              <Text style={styles.pulseStatText}>{activeCount} Active</Text>
+              <Text style={[styles.pulseStatText, { color: theme.textPrimary }]}>{activeCount} Active</Text>
             </View>
             <View style={styles.pulseStatItem}>
               <View style={[styles.pulseDot, { backgroundColor: '#29B6F6' }]} />
-              <Text style={styles.pulseStatText}>{restingCount} Resting</Text>
+              <Text style={[styles.pulseStatText, { color: theme.textPrimary }]}>{restingCount} Resting</Text>
             </View>
           </View>
 
@@ -133,7 +152,7 @@ export default function FamilyCircleScreen({ navigation }) {
 
           <View style={styles.pulseMessageRow}>
             <View style={styles.pulseStatusDot} />
-            <Text style={styles.pulseMessageText}>
+            <Text style={[styles.pulseMessageText, { color: theme.textSecondary }]}>
               All connected family members are in healthy target zones
             </Text>
           </View>
@@ -169,8 +188,8 @@ export default function FamilyCircleScreen({ navigation }) {
 
         {/* 6, 7, 8, 9, 10. Family Member Cards */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Family Health Overview</Text>
-          <Text style={styles.sectionSubtitle}>
+          <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>Family Health Overview</Text>
+          <Text style={[styles.sectionSubtitle, { color: theme.textSecondary }]}>
             Tap a card to view detailed telemetry
           </Text>
         </View>
@@ -189,10 +208,12 @@ export default function FamilyCircleScreen({ navigation }) {
                   key={member.id}
                   style={[
                     styles.memberCard,
-                    isActive && styles.activeMemberCard,
+                    { backgroundColor: theme.bgCard, borderColor: theme.borderSub },
+                    isActive && { borderColor: theme.accent, backgroundColor: theme.bgTag },
+                    !member.isAuthorized && { opacity: 0.85 }
                   ]}
-                  onPress={() => handleSelectMember(member.id)}
-                  activeOpacity={0.8}
+                  onPress={() => member.isAuthorized && handleSelectMember(member.id)}
+                  activeOpacity={member.isAuthorized ? 0.8 : 1}
                 >
                   {/* Card Top Row: Avatar + Info + Arrow */}
                   <View style={styles.memberCardTop}>
@@ -219,7 +240,7 @@ export default function FamilyCircleScreen({ navigation }) {
 
                     <View style={styles.memberInfoCol}>
                       <View style={styles.memberNameRow}>
-                        <Text style={styles.memberName} numberOfLines={1}>
+                        <Text style={[styles.memberName, { color: theme.textPrimary }]} numberOfLines={1}>
                           {member.name}
                         </Text>
                         {isActive && (
@@ -230,10 +251,10 @@ export default function FamilyCircleScreen({ navigation }) {
                       </View>
 
                       <View style={styles.memberSubRow}>
-                        <Text style={styles.memberRole}>
+                        <Text style={[styles.memberRole, { color: theme.textSecondary }]}>
                           {member.role ? member.role : 'Family Circle'}
                         </Text>
-                        <Text style={styles.roleSeparator}>•</Text>
+                        <Text style={[styles.roleSeparator, { color: theme.textMuted }]}>•</Text>
                         <View style={styles.liveStatusRow}>
                           <View
                             style={[
@@ -253,37 +274,54 @@ export default function FamilyCircleScreen({ navigation }) {
                       </View>
                     </View>
 
-                    <ChevronRight color="#8FAAB2" size={18} />
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <TouchableOpacity
+                        onPress={() => handleDeleteMember(member)}
+                        style={{ padding: 8, marginRight: 2 }}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      >
+                        <Trash2 color="#FF5252" size={18} />
+                      </TouchableOpacity>
+                      <ChevronRight color="#8FAAB2" size={18} />
+                    </View>
                   </View>
 
                   {/* Real Health Metrics Chips (2 Key Metrics) */}
-                  <View style={styles.memberMetricsRow}>
-                    <View style={styles.metricBadge}>
-                      <Heart color="#FF5252" size={14} style={{ marginRight: 5 }} />
-                      <Text style={styles.metricVal}>
-                        {member.metrics?.heartRate || 72}
-                      </Text>
-                      <Text style={styles.metricUnit}>BPM</Text>
-                    </View>
-
-                    <View style={styles.metricBadge}>
-                      <Droplets color="#29B6F6" size={14} style={{ marginRight: 5 }} />
-                      <Text style={styles.metricVal}>
-                        {member.metrics?.oxygen || 98}%
-                      </Text>
-                      <Text style={styles.metricUnit}>SpO2</Text>
-                    </View>
-
-                    {member.metrics?.steps && (
+                  {member.isAuthorized ? (
+                    <View style={styles.memberMetricsRow}>
                       <View style={styles.metricBadge}>
-                        <Activity color="#00BFA5" size={14} style={{ marginRight: 5 }} />
+                        <Heart color="#FF5252" size={14} style={{ marginRight: 5 }} />
                         <Text style={styles.metricVal}>
-                          {(member.metrics.steps).toLocaleString()}
+                          {member.metrics?.heartRate || '--'}
                         </Text>
-                        <Text style={styles.metricUnit}>steps</Text>
+                        <Text style={styles.metricUnit}>BPM</Text>
                       </View>
-                    )}
-                  </View>
+
+                      <View style={styles.metricBadge}>
+                        <Droplets color="#29B6F6" size={14} style={{ marginRight: 5 }} />
+                        <Text style={styles.metricVal}>
+                          {member.metrics?.oxygen || '--'}
+                        </Text>
+                        <Text style={styles.metricUnit}>% SpO2</Text>
+                      </View>
+
+                      {!!member.metrics?.steps && member.metrics.steps > 0 && (
+                        <View style={styles.metricBadge}>
+                          <Activity color="#00BFA5" size={14} style={{ marginRight: 5 }} />
+                          <Text style={styles.metricVal}>
+                            {(member.metrics.steps).toLocaleString()}
+                          </Text>
+                          <Text style={styles.metricUnit}>steps</Text>
+                        </View>
+                      )}
+                    </View>
+                  ) : (
+                    <View style={[styles.memberMetricsRow, { opacity: 0.6 }]}>
+                      <Text style={{ fontSize: 12, color: theme.textSecondary, fontStyle: 'italic', paddingVertical: 4 }}>
+                        Health data not authorized for viewing
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -309,23 +347,6 @@ export default function FamilyCircleScreen({ navigation }) {
           </View>
         )}
 
-        {/* 14. Compact Invite Family Member Card */}
-        <TouchableOpacity
-          style={styles.inviteCard}
-          onPress={handleAddFamily}
-          activeOpacity={0.8}
-        >
-          <View style={styles.inviteIconBox}>
-            <UserPlus color="#00BFA5" size={20} />
-          </View>
-          <View style={styles.inviteTextCol}>
-            <Text style={styles.inviteTitle}>Add family member</Text>
-            <Text style={styles.inviteSubtitle}>
-              Connect someone you care about to monitor their wellness
-            </Text>
-          </View>
-          <Plus color="#00BFA5" size={18} />
-        </TouchableOpacity>
       </ScrollView>
     </View>
   );

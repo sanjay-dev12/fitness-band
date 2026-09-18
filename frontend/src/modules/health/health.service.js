@@ -1,15 +1,26 @@
 import { Platform, NativeModules } from 'react-native';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import {
-  initialize,
-  getSdkStatus,
-  requestPermission,
-  getGrantedPermissions,
-  readRecords,
-  openHealthConnectSettings,
-  SdkAvailabilityStatus,
-} from 'react-native-health-connect';
 import { syncHealthDataApi, getLatestHealthApi } from '../../services/api';
+
+/**
+ * Dynamically import react-native-health-connect on Android to prevent bundling failures on Web and Expo Go.
+ */
+function getHealthConnect() {
+  if (Platform.OS !== 'android') return {};
+  try {
+    return require('react-native-health-connect');
+  } catch (e) {
+    return {};
+  }
+}
+
+const initialize = (...args) => getHealthConnect().initialize?.(...args);
+const getSdkStatus = (...args) => getHealthConnect().getSdkStatus?.(...args);
+const requestPermission = (...args) => getHealthConnect().requestPermission?.(...args);
+const getGrantedPermissions = (...args) => getHealthConnect().getGrantedPermissions?.(...args);
+const readRecords = (...args) => getHealthConnect().readRecords?.(...args);
+const openHealthConnectSettings = (...args) => getHealthConnect().openHealthConnectSettings?.(...args);
+const SdkAvailabilityStatus = getHealthConnect().SdkAvailabilityStatus || {};
 
 /**
  * Health Connect Availability Status enum mapping

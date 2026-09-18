@@ -6,8 +6,14 @@ import {
   syncHealthDataApi,
   getFamilyApi,
   getFamilyMemberHealthApi,
+  registerPushTokenApi,
+  sendLowHrAlertApi,
+  removeFamilyMemberApi,
 } from '../services/api';
 import { syncAllHealthData } from '../modules/health/health.service';
+import { LOW_HR_THRESHOLD, LOW_HR_ALERT_COOLDOWN_MS } from '../services/healthConstants';
+import { getExpoPushToken } from '../services/notificationService';
+import { useRef } from 'react';
 
 const ProfileContext = createContext(null);
 
@@ -82,6 +88,29 @@ export function ProfileProvider({ children }) {
   const [activeProfileId, setActiveProfileId] = useState(() => {
     return 'profile_owner';
   });
+
+  // Global band connection state
+  const [isBandConnected, setBandConnected] = useState(false);
+
+  // Low HR alert state tracking
+  const lowHrAlertSentRef = useRef(false);
+  const lastAlertTimeRef = useRef(0);
+
+  // Helper to check and trigger low HR alert
+  const checkLowHeartRate = useCallback((heartRate) => {
+    if (typeof heartRate === 'number' && heartRate > 0) {
+      if (heartRate <= LOW_HR_THRESHOLD) {
+        const now = Date.now();
+        if (!lowHrAlertSentRef.current || (now - lastAlertTimeRef.current > LOW_HR_ALERT_COOLDOWN_MS)) {
+          lowHrAlertSentRef.current = true;
+          lastAlertTimeRef.current = now;
+          sendLowHrAlertApi(heartRate).catch(e => console.log('Failed to send low HR alert:', e));
+        }
+      } else {
+        lowHrAlertSentRef.current = false;
+      }
+    }
+  }, []);
 
   // In-app toast state
   const [toast, setToast] = useState({
@@ -175,6 +204,7 @@ export function ProfileProvider({ children }) {
             return p;
           })
         );
+        checkLowHeartRate(d.heartRate);
       }
     } catch (e) {
       console.log('Error loading health data:', e);
@@ -232,6 +262,7 @@ export function ProfileProvider({ children }) {
             online: c.status === 'accepted',
             inviteCode: c.inviteCode,
             status: c.status,
+            isAuthorized: Boolean(c.isAuthorizedToView),
           };
         });
 
@@ -291,6 +322,7 @@ export function ProfileProvider({ children }) {
             return p;
           })
         );
+        checkLowHeartRate(d.heartRate);
         return { success: true, data: d };
       }
       return { success: false };
@@ -322,6 +354,19 @@ export function ProfileProvider({ children }) {
   useEffect(() => {
     refreshHealthData();
     refreshFamily();
+
+    // Register push token for cross-device notifications
+    const registerPushToken = async () => {
+      try {
+        const token = await getExpoPushToken();
+        if (token) {
+          await registerPushTokenApi(token);
+        }
+      } catch (e) {
+        console.log('Failed to register push token:', e);
+      }
+    };
+    registerPushToken();
   }, [refreshHealthData, refreshFamily]);
 
   // Sync profiles to localStorage on Web
@@ -382,6 +427,22 @@ export function ProfileProvider({ children }) {
     refreshFamily();
   };
 
+  // Remove a family member profile
+  const removeFamilyMemberProfile = async (profileId) => {
+    // profileId looks like "family_<connectionId>"
+    const connectionId = profileId.replace('family_', '');
+    try {
+      await removeFamilyMemberApi(connectionId);
+    } catch (e) {
+      console.log('Error removing family member from backend:', e);
+    }
+    setProfiles((prev) => prev.filter((p) => p.id !== profileId));
+    if (activeProfileId === profileId) {
+      const remaining = profiles.filter((p) => p.id !== profileId);
+      setActiveProfileId(remaining.length > 0 ? remaining[0].id : null);
+    }
+  };
+
   const activeProfile =
     profiles.find((p) => p.id === activeProfileId) || profiles[0] || getInitialProfiles()[0];
 
@@ -393,6 +454,7 @@ export function ProfileProvider({ children }) {
         activeProfileId,
         switchProfile,
         addFamilyMemberProfile,
+        removeFamilyMemberProfile,
         refreshHealthData,
         refreshFamily,
         syncHealthTelemetry,
@@ -404,6 +466,8 @@ export function ProfileProvider({ children }) {
         modal,
         showModal,
         hideModal,
+        isBandConnected,
+        setBandConnected,
       }}
     >
       {children}

@@ -28,6 +28,10 @@ const User = sequelize.define('User', {
         allowNull: true,
         unique: true,
     },
+    pushToken: {
+        type: DataTypes.STRING,
+        allowNull: true,
+    },
     authProvider: {
         type: DataTypes.ENUM('local', 'google'),
         allowNull: false,
@@ -40,6 +44,10 @@ const User = sequelize.define('User', {
     },
     country: {
         type: DataTypes.STRING,
+        allowNull: true,
+    },
+    avatar: {
+        type: DataTypes.TEXT,
         allowNull: true,
     },
     state: {

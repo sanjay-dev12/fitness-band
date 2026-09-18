@@ -12,8 +12,10 @@ import {
 } from 'react-native';
 import { User, Lock, Eye, EyeOff, Activity, ArrowRight, Phone } from 'lucide-react-native';
 import { registerUser } from '../services/api';
+import { useTheme } from '../context/ThemeContext';
 
 export default function RegisterScreen({ navigation }) {
+  const { theme } = useTheme();
   const [fullName, setFullName] = useState('');
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
@@ -65,7 +67,7 @@ export default function RegisterScreen({ navigation }) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.bg }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
@@ -74,12 +76,12 @@ export default function RegisterScreen({ navigation }) {
           <View style={styles.logoBadge}>
             <Activity color="#00BFA5" size={32} />
           </View>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join Hand Band Health Network</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>Create Account</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Join Hand Band Health Network</Text>
         </View>
 
         {/* Form Container */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
           {errorMessage ? (
             <View style={styles.errorBanner}>
               <Text style={styles.errorText}>{errorMessage}</Text>
@@ -87,11 +89,11 @@ export default function RegisterScreen({ navigation }) {
           ) : null}
 
           {/* Full Name Input */}
-          <Text style={styles.label}>Full Name</Text>
-          <View style={styles.inputContainer}>
-            <User color="#7A9EA8" size={20} style={styles.inputIcon} />
+          <Text style={[styles.label, { color: theme.textSecondary }]}>Full Name</Text>
+          <View style={[styles.inputContainer, { backgroundColor: theme.bgInput, borderColor: theme.accent }]}>
+            <User color={theme.textSecondary} size={20} style={styles.inputIcon} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: theme.textPrimary }]}
               placeholder="e.g. John Doe"
               placeholderTextColor="#54717A"
               value={fullName}

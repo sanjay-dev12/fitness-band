@@ -2,9 +2,11 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { Plus, Users } from 'lucide-react-native';
 import { useProfile } from '../context/ProfileContext';
+import { useTheme } from '../context/ThemeContext';
 
 export default function ProfileSwitcher({ navigation }) {
   const { profiles, activeProfileId, switchProfile } = useProfile();
+  const { theme } = useTheme();
 
   const handleAddPress = () => {
     if (navigation) {
@@ -13,13 +15,13 @@ export default function ProfileSwitcher({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bgCard, borderBottomColor: theme.borderSub }]}>
       <View style={styles.headerRow}>
         <View style={styles.titleWithBadge}>
-          <Users color="#00BFA5" size={16} style={{ marginRight: 6 }} />
-          <Text style={styles.headerLabel}>Family</Text>
+          <Users color={theme.accent} size={16} style={{ marginRight: 6 }} />
+          <Text style={[styles.headerLabel, { color: theme.textPrimary }]}>Family</Text>
         </View>
-        <Text style={styles.switchHint}>Tap a profile to view their health</Text>
+        <Text style={[styles.switchHint, { color: theme.textSecondary }]}>Tap a profile to view their health</Text>
       </View>
 
       <ScrollView
@@ -27,7 +29,7 @@ export default function ProfileSwitcher({ navigation }) {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollList}
       >
-        {profiles.map((profile) => {
+        {profiles.filter(p => p.isPrimary || p.isAuthorized).map((profile) => {
           const isActive = profile.id === activeProfileId;
 
           return (
@@ -64,7 +66,11 @@ export default function ProfileSwitcher({ navigation }) {
 
               {/* Profile Name */}
               <Text
-                style={[styles.profileName, isActive && styles.profileNameActive]}
+                style={[
+                  styles.profileName,
+                  { color: theme.textSecondary },
+                  isActive && { color: theme.textPrimary, fontWeight: '700' },
+                ]}
                 numberOfLines={1}
               >
                 {profile.name}
@@ -104,9 +110,7 @@ export default function ProfileSwitcher({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     paddingVertical: 10,
-    backgroundColor: '#002B36',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(122, 158, 168, 0.12)',
   },
   headerRow: {
     flexDirection: 'row',
@@ -122,12 +126,10 @@ const styles = StyleSheet.create({
   headerLabel: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#FFFFFF',
     letterSpacing: 0.3,
   },
   switchHint: {
     fontSize: 11,
-    color: '#8FAAB2',
   },
   scrollList: {
     paddingHorizontal: 16,
@@ -205,7 +207,6 @@ const styles = StyleSheet.create({
   profileName: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#8FAAB2',
     marginTop: 5,
     textAlign: 'center',
   },

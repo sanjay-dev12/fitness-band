@@ -17,11 +17,13 @@ import * as AuthSession from 'expo-auth-session';
 import * as Google from 'expo-auth-session/providers/google';
 import { loginUser, googleLoginApi } from '../services/api';
 import { useProfile } from '../context/ProfileContext';
+import { useTheme } from '../context/ThemeContext';
 
 WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen({ navigation }) {
-  const { showModal } = useProfile();
+  const { showModal, showToast } = useProfile();
+  const { theme } = useTheme();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -61,15 +63,9 @@ export default function LoginScreen({ navigation }) {
     try {
       const result = await googleLoginApi(idToken);
       setGoogleLoading(false);
-      showModal({
-        title: 'Login Successful! 🎉',
-        message: `Welcome to Hand Band, ${result.data?.user?.fullName || 'User'}!`,
-        type: 'success',
-        confirmText: 'Continue to Dashboard',
-        onConfirm: () => {
-          navigation.navigate('MainTabs');
-        },
-      });
+      // Auto-navigate directly — no button press required
+      showToast(`Welcome, ${result.data?.user?.fullName || 'User'}!`, 'success');
+      navigation.navigate('MainTabs');
     } catch (error) {
       setGoogleLoading(false);
       setErrorMessage(error.message);
@@ -123,15 +119,9 @@ export default function LoginScreen({ navigation }) {
       });
 
       setLoading(false);
-      showModal({
-        title: 'Login Successful! 🎉',
-        message: `Welcome back to Hand Band, ${identifier.trim()}!`,
-        type: 'success',
-        confirmText: 'Continue to Dashboard',
-        onConfirm: () => {
-          navigation.navigate('MainTabs');
-        },
-      });
+      // Auto-navigate directly — no button press required
+      showToast(`Welcome back, ${identifier.trim()}!`, 'success');
+      navigation.navigate('MainTabs');
     } catch (error) {
       setLoading(false);
       setErrorMessage(error.message);
@@ -140,7 +130,7 @@ export default function LoginScreen({ navigation }) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.bg }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
@@ -149,13 +139,13 @@ export default function LoginScreen({ navigation }) {
           <View style={styles.logoBadge}>
             <Activity color="#00BFA5" size={32} />
           </View>
-          <Text style={styles.title}>HAND BAND</Text>
-          <Text style={styles.subtitle}>Health & Family Circle Platform</Text>
+          <Text style={[styles.title, { color: theme.textPrimary }]}>HAND BAND</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Health & Family Circle Platform</Text>
         </View>
 
         {/* Form Container */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Sign In</Text>
+        <View style={[styles.card, { backgroundColor: theme.bgCard, borderColor: theme.border }]}>
+          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>Sign In</Text>
 
           {errorMessage ? (
             <View style={styles.errorBanner}>
@@ -164,11 +154,11 @@ export default function LoginScreen({ navigation }) {
           ) : null}
 
           {/* Identifier Input */}
-          <Text style={styles.label}>Name</Text>
-          <View style={styles.inputContainer}>
-            <User color="#7A9EA8" size={20} style={styles.inputIcon} />
+          <Text style={[styles.label, { color: theme.textSecondary }]}>Name</Text>
+          <View style={[styles.inputContainer, { backgroundColor: theme.bgInput, borderColor: theme.accent }]}>
+            <User color={theme.textSecondary} size={20} style={styles.inputIcon} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: theme.textPrimary }]}
               placeholder="e.g. John Doe"
               placeholderTextColor="#54717A"
               value={identifier}
@@ -178,11 +168,11 @@ export default function LoginScreen({ navigation }) {
           </View>
 
           {/* Password Input */}
-          <Text style={styles.label}>Password</Text>
-          <View style={styles.inputContainer}>
-            <Lock color="#7A9EA8" size={20} style={styles.inputIcon} />
+          <Text style={[styles.label, { color: theme.textSecondary }]}>Password</Text>
+          <View style={[styles.inputContainer, { backgroundColor: theme.bgInput, borderColor: theme.accent }]}>
+            <Lock color={theme.textSecondary} size={20} style={styles.inputIcon} />
             <TextInput
-              style={styles.input}
+              style={[styles.input, { color: theme.textPrimary }]}
               placeholder="Enter your password"
               placeholderTextColor="#54717A"
               value={password}
@@ -227,7 +217,7 @@ export default function LoginScreen({ navigation }) {
 
           {/* Footer Register Link */}
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>Don't have an account? </Text>
+            <Text style={[styles.footerText, { color: theme.textSecondary }]}>Don't have an account? </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Register')}>
               <Text style={styles.linkText}>Register</Text>
             </TouchableOpacity>
@@ -260,7 +250,6 @@ export default function LoginScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#001F27',
   },
   scrollContent: {
     flexGrow: 1,
@@ -286,25 +275,20 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#FFFFFF',
     letterSpacing: 2,
   },
   subtitle: {
     fontSize: 14,
-    color: '#7A9EA8',
     marginTop: 4,
   },
   card: {
-    backgroundColor: '#002B36',
     borderRadius: 16,
     padding: 24,
     borderWidth: 1,
-    borderColor: 'rgba(122, 158, 168, 0.2)',
   },
   cardTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#FFFFFF',
     marginBottom: 20,
   },
   errorBanner: {
@@ -321,17 +305,14 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    color: '#7A9EA8',
     marginBottom: 8,
     fontWeight: '500',
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#001F27',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#004D40',
     marginBottom: 20,
     paddingLeft: 12,
     paddingRight: 40,
@@ -343,7 +324,6 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     height: 48,
-    color: '#FFFFFF',
     fontSize: 16,
     outlineStyle: 'none',
   },
@@ -391,7 +371,6 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   footerText: {
-    color: '#7A9EA8',
     fontSize: 14,
   },
   linkText: {

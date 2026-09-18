@@ -44,10 +44,12 @@ app.get("/", (req, res) => {
 // Routes
 import familyRoutes from "./modules/family/family.routes.js";
 import healthRoutes from "./modules/health/health.routes.js";
+import alertRoutes from "./modules/alert/alert.routes.js";
 
 app.use("/api/auth", authRoutes);
 app.use("/api/family", familyRoutes);
 app.use("/api/health", healthRoutes);
+app.use("/api/alert", alertRoutes);
 
 // Global Error Handler
 app.use(errorHandler);

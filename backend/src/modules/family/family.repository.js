@@ -45,3 +45,12 @@ export const getConnectionsForUser = async (userId) => {
         ]
     });
 };
+
+export const deleteFamilyConnection = async (id, userId) => {
+    return await FamilyCircle.destroy({
+        where: {
+            id,
+            [Op.or]: [{ parentId: userId }, { childId: userId }],
+        },
+    });
+};
