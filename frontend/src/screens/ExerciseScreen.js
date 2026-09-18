@@ -25,6 +25,7 @@ import {
 } from 'lucide-react-native';
 import { useProfile } from '../context/ProfileContext';
 import { useTheme } from '../context/ThemeContext';
+import { formatConnectedDateTime } from '../utils/dateUtils';
 
 const WORKOUT_TYPES = [
   {
@@ -51,7 +52,7 @@ const WORKOUT_TYPES = [
 ];
 
 export default function ExerciseScreen() {
-  const { activeProfile, showModal, showToast, syncHealthTelemetry } = useProfile();
+  const { activeProfile, showModal, showToast, syncHealthTelemetry, lastSyncedTime, isBluetoothConnected } = useProfile();
   const { theme } = useTheme();
   const m = activeProfile?.metrics || {};
 
@@ -114,7 +115,7 @@ export default function ExerciseScreen() {
       syncHealthTelemetry({
         workoutType: selectedWorkout.title,
         workoutDuration: workoutMins,
-        source: 'Pebble Exercise Session',
+        source: 'Band Exercise Session',
       }).catch((e) => console.log('Workout sync error:', e.message));
     }
 
@@ -161,7 +162,7 @@ export default function ExerciseScreen() {
             <View style={styles.timerDeviceRow}>
               <Watch color="#00BFA5" size={14} style={{ marginRight: 5 }} />
               <Text style={styles.timerDeviceText}>
-                {activeProfile?.name}'s Band tracking live
+                {activeProfile?.name}'s Band • Connected ({formatConnectedDateTime(lastSyncedTime, true)})
               </Text>
             </View>
           </View>
@@ -347,7 +348,7 @@ export default function ExerciseScreen() {
             <View style={styles.preStatusLeft}>
               <Watch color="#00BFA5" size={15} style={{ marginRight: 6 }} />
               <Text style={styles.preStatusText}>
-                {activeProfile?.name}'s Band connected
+                {isBluetoothConnected ? `${activeProfile?.name}'s Band connected • ${formatConnectedDateTime(lastSyncedTime, true)}` : `${activeProfile?.name}'s Band Disconnected`}
               </Text>
             </View>
             <View style={styles.preStatusRight}>

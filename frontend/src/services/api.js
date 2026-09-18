@@ -409,6 +409,45 @@ export async function getFamilyMemberHealthApi(memberId) {
 }
 
 /**
+ * Update Bluetooth connection status on server
+ * @param {boolean} connected - true to connect and compute, false to stop calculation
+ */
+export async function setBluetoothStatusApi(connected) {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/health/bluetooth`, {
+      method: 'POST',
+      body: JSON.stringify({ connected: Boolean(connected) }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to update Bluetooth state.');
+    }
+    return data;
+  } catch (error) {
+    console.log('setBluetoothStatusApi error:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Get current Bluetooth connection status from server
+ */
+export async function getBluetoothStatusApi() {
+  try {
+    const response = await fetchWithTimeout(`${API_BASE_URL}/health/bluetooth`);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.message || 'Failed to fetch Bluetooth status.');
+    }
+    return data;
+  } catch (error) {
+    console.log('getBluetoothStatusApi error:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+
+/**
  * Register this device's Expo push token with the backend.
  * @param {string} pushToken - Expo push token string
  */

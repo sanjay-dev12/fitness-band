@@ -109,6 +109,7 @@ function AppStack() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: theme.bg },
+        animation: 'slide_from_right',
       }}
     >
       <Stack.Screen name="Login" component={LoginScreen} />

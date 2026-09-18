@@ -3,7 +3,7 @@ import { Op } from 'sequelize';
 
 export const saveHealthData = async (userId, data) => {
     const recordedAt = data.timestamp ? new Date(data.timestamp) : new Date();
-    const source = data.source || 'Health Connect';
+    const source = data.source || 'Bluetooth Band';
     const sourceRecordId = data.sourceRecordId || null;
 
     // Duplicate prevention: check for existing record with same sourceRecordId
@@ -57,6 +57,8 @@ export const saveHealthData = async (userId, data) => {
         syncedAt: new Date(),
         rawSamples: data.rawSamples || null,
         statusText: data.statusText || 'Synchronized',
+        bluetoothConnected: data.bluetoothConnected !== undefined ? Boolean(data.bluetoothConnected) : true,
+        bluetoothDisconnectedAt: data.bluetoothDisconnectedAt ? new Date(data.bluetoothDisconnectedAt) : null,
         recordedAt
     };
 
@@ -128,3 +130,46 @@ export const getHealthSummary = async (userId, days = 7) => {
         }
     };
 };
+
+export const updateBluetoothState = async (userId, isConnected, currentData = null) => {
+    let latest = await HealthData.findOne({
+        where: { userId },
+        order: [['recordedAt', 'DESC']]
+    });
+
+    if (!latest) {
+        return await HealthData.create({
+            userId,
+            bluetoothConnected: isConnected,
+            bluetoothDisconnectedAt: isConnected ? null : new Date(),
+            syncedAt: new Date(),
+            recordedAt: new Date(),
+            statusText: isConnected ? 'Connected via Bluetooth' : 'Bluetooth Disconnected'
+        });
+    }
+
+    const updates = {
+        bluetoothConnected: isConnected,
+        bluetoothDisconnectedAt: isConnected ? null : new Date(),
+        statusText: isConnected ? 'Connected via Bluetooth' : 'Bluetooth Disconnected • Telemetry Paused',
+    };
+
+    // If we have accumulated/corrected metrics up to this moment, preserve them in DB
+    if (currentData) {
+        if (currentData.steps !== undefined) updates.steps = currentData.steps;
+        if (currentData.calories !== undefined) updates.calories = currentData.calories;
+        if (currentData.distance !== undefined) updates.distance = currentData.distance;
+        if (currentData.exerciseMins !== undefined) updates.exerciseMins = currentData.exerciseMins;
+        if (currentData.walkingHours !== undefined) updates.walkingHours = currentData.walkingHours;
+        if (currentData.heartRate !== undefined) updates.heartRate = currentData.heartRate;
+        if (currentData.battery !== undefined) updates.battery = currentData.battery;
+    }
+
+    if (isConnected) {
+        updates.syncedAt = new Date();
+    }
+
+    await latest.update(updates);
+    return latest;
+};
+

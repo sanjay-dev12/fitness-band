@@ -24,6 +24,7 @@ import {
 import ProfileSwitcher from '../components/ProfileSwitcher';
 import { useProfile } from '../context/ProfileContext';
 import { useTheme } from '../context/ThemeContext';
+import { formatConnectedDateTime } from '../utils/dateUtils';
 
 export default function FamilyCircleScreen({ navigation }) {
   const { profiles, activeProfileId, switchProfile, refreshFamily, removeFamilyMemberProfile } = useProfile();
@@ -271,6 +272,14 @@ export default function FamilyCircleScreen({ navigation }) {
                             {statusText}
                           </Text>
                         </View>
+                        {member.lastSynced ? (
+                          <>
+                            <Text style={styles.roleSeparator}>•</Text>
+                            <Text style={styles.memberRole}>
+                              {formatConnectedDateTime(member.lastSynced, true)}
+                            </Text>
+                          </>
+                        ) : null}
                       </View>
                     </View>
 

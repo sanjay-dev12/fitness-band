@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import {
   ArrowLeft,
@@ -34,7 +35,9 @@ import {
   openSettings,
   HEALTH_CONNECT_STATUS,
 } from '../health.service';
+import { setupHealthConnect, readHealthData } from '../../../services/healthConnect';
 import { useProfile } from '../../../context/ProfileContext';
+import { formatConnectedDateTime } from '../../../utils/dateUtils';
 
 export default function HealthDashboardScreen({ navigation }) {
   const {
@@ -44,6 +47,7 @@ export default function HealthDashboardScreen({ navigation }) {
     refreshHealthData,
     showModal,
     showToast,
+    isBluetoothConnected,
   } = useProfile();
   const m = activeProfile?.metrics || {};
 
@@ -54,6 +58,25 @@ export default function HealthDashboardScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [syncStatus, setSyncStatus] = useState('ready'); // 'ready' | 'syncing' | 'success' | 'permission_required' | 'error'
   const [error, setError] = useState(null);
+  const [testLoading, setTestLoading] = useState(false);
+
+  const handleTestHealthConnect = async () => {
+    try {
+      setTestLoading(true);
+      console.log('========== [HC TEST] STARTING SETUP ==========');
+      const setupResult = await setupHealthConnect();
+      console.log('========== [HC TEST] SETUP RESULT ==========', JSON.stringify(setupResult, null, 2));
+
+      console.log('========== [HC TEST] READING DATA ==========');
+      const dataResult = await readHealthData();
+      console.log('========== [HC TEST] DATA RESULT ==========', JSON.stringify(dataResult, null, 2));
+      console.log('========== [HC TEST] FINISHED ==========');
+    } catch (err) {
+      console.error('========== [HC TEST] ERROR ==========', err);
+    } finally {
+      setTestLoading(false);
+    }
+  };
 
   const formatLastSynced = (date) => {
     if (!date) return 'Not synced yet';
@@ -76,29 +99,34 @@ export default function HealthDashboardScreen({ navigation }) {
     setError(null);
 
     try {
-      const availability = await checkHealthConnectAvailability();
-      if (!availability.isAvailable) {
-        setIsAvailable(false);
-        setLoading(false);
-        setRefreshing(false);
-        return;
-      }
-      setIsAvailable(true);
+      if (Platform.OS === 'android') {
+        const availability = await checkHealthConnectAvailability();
+        if (availability.isAvailable) {
+          setIsAvailable(true);
+          const perms = await checkHealthPermissions();
+          setPermissionGranted(perms.hasHeartRate);
 
-      const perms = await checkHealthPermissions();
-      setPermissionGranted(perms.hasHeartRate);
-
-      if (!perms.hasHeartRate) {
-        setLoading(false);
-        setRefreshing(false);
-        return;
-      }
-
-      const hrResult = await getHeartRateData();
-      if (hrResult.hasData && hrResult.latest) {
-        setHeartRateData(hrResult.latest);
+          if (perms.hasHeartRate) {
+            const hrResult = await getHeartRateData();
+            if (hrResult.hasData && hrResult.latest) {
+              setHeartRateData(hrResult.latest);
+            }
+          }
+        } else {
+          setIsAvailable(true);
+          setPermissionGranted(true);
+        }
       } else {
-        setHeartRateData(null);
+        setIsAvailable(true);
+        setPermissionGranted(true);
+      }
+
+      if (m.heartRate) {
+        setHeartRateData((prev) => prev || {
+          beatsPerMinute: m.heartRate,
+          time: lastSyncedTime || new Date(),
+          source: m.source || 'Bluetooth Band',
+        });
       }
     } catch (err) {
       setError(err.message || 'Unable to read health data');
@@ -140,45 +168,20 @@ export default function HealthDashboardScreen({ navigation }) {
     setError(null);
 
     try {
-      // 1. Verify Health Connect availability
-      const avail = await checkHealthConnectAvailability();
-      if (!avail.isAvailable) {
-        setIsAvailable(false);
-        setSyncStatus('error');
-        if (showModal) {
-          showModal({
-            title: 'Health Connect Setup',
-            message: avail.message || 'Health Connect is not available on this device.',
-            type: 'warning',
-            confirmText: 'Understood',
-          });
-        }
-        setTimeout(() => setSyncStatus('ready'), 3500);
-        return;
-      }
-      setIsAvailable(true);
-
-      // 2. Check & request permissions if needed
-      const perms = await checkHealthPermissions();
-      if (!perms.hasHeartRate) {
-        const reqRes = await requestHealthPermissions();
-        if (!reqRes.granted) {
-          setSyncStatus('permission_required');
-          if (showModal) {
-            showModal({
-              title: 'Health Permission Required',
-              message: 'Please grant read permissions for Steps, Heart Rate, Sleep, and SpO2 so Hand Band can synchronize your Pebble health data.',
-              type: 'warning',
-              confirmText: 'Open Settings',
-              onConfirm: () => openSettings(),
-            });
+      if (Platform.OS === 'android') {
+        const avail = await checkHealthConnectAvailability();
+        if (avail.isAvailable) {
+          const perms = await checkHealthPermissions();
+          if (!perms.hasHeartRate) {
+            const reqRes = await requestHealthPermissions();
+            if (reqRes.granted) {
+              setPermissionGranted(true);
+            }
           }
-          return;
         }
-        setPermissionGranted(true);
       }
 
-      // 3. Execute synchronized read & server push
+      // Execute synchronized read & server push
       if (syncHealthData) {
         const res = await syncHealthData();
         if (res?.success) {
@@ -244,17 +247,19 @@ export default function HealthDashboardScreen({ navigation }) {
       <View style={styles.container}>
         {/* Navigation Bar */}
         <View style={styles.navBar}>
-          {navigation?.canGoBack?.() ? (
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-              activeOpacity={0.7}
-            >
-              <ArrowLeft color="#FFFFFF" size={22} />
-            </TouchableOpacity>
-          ) : (
-            <View style={{ width: 22 }} />
-          )}
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              if (navigation?.canGoBack?.()) {
+                navigation.goBack();
+              } else {
+                navigation?.navigate('MainTabs');
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <ArrowLeft color="#FFFFFF" size={22} />
+          </TouchableOpacity>
 
           <Text style={styles.navTitle}>Health Telemetry</Text>
 
@@ -287,14 +292,16 @@ export default function HealthDashboardScreen({ navigation }) {
                 <Activity color="#00BFA5" size={20} />
               </View>
               <View>
-                <Text style={styles.bannerTitle}>Health Connect</Text>
-                <Text style={styles.bannerSubtitle}>Pebble Health Pipeline</Text>
+                <Text style={styles.bannerTitle}>Bluetooth Band</Text>
+                <Text style={styles.bannerSubtitle}>Direct BLE Telemetry</Text>
               </View>
             </View>
 
-            <View style={[styles.statusBadge, { backgroundColor: statusBg }]}>
-              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-              <Text style={[styles.statusText, { color: statusColor }]}>{statusText}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: isBluetoothConnected ? statusBg : 'rgba(255, 82, 82, 0.14)' }]}>
+              <View style={[styles.statusDot, { backgroundColor: isBluetoothConnected ? statusColor : '#FF5252' }]} />
+              <Text style={[styles.statusText, { color: isBluetoothConnected ? statusColor : '#FF8A80' }]}>
+                {isBluetoothConnected ? 'Active' : 'Paused'}
+              </Text>
             </View>
           </View>
 
@@ -302,7 +309,7 @@ export default function HealthDashboardScreen({ navigation }) {
           <View style={styles.syncCard}>
             <View style={styles.syncCardHeader}>
               <Text style={styles.syncCardTitle}>Device Synchronization</Text>
-              <Text style={styles.syncCardTime}>{formatLastSynced(lastSyncedTime)}</Text>
+              <Text style={styles.syncCardTime}>{formatConnectedDateTime(lastSyncedTime)}</Text>
             </View>
 
             <TouchableOpacity
@@ -416,7 +423,7 @@ export default function HealthDashboardScreen({ navigation }) {
               </View>
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={styles.detailCardTitle}>Sleep Analysis</Text>
-                <Text style={styles.detailCardSubtitle}>Pebble Sleep Staging</Text>
+                <Text style={styles.detailCardSubtitle}>Band Sleep Staging</Text>
               </View>
               <Text style={styles.detailCardHighlight}>
                 {m.sleepDuration ? m.sleepDuration : '--'}
@@ -490,7 +497,7 @@ export default function HealthDashboardScreen({ navigation }) {
               </View>
               <View style={{ flex: 1, marginLeft: 10 }}>
                 <Text style={styles.detailCardTitle}>Stress & Workouts</Text>
-                <Text style={styles.detailCardSubtitle}>Pebble Health Tracking</Text>
+                <Text style={styles.detailCardSubtitle}>Band Activity Tracking</Text>
               </View>
             </View>
 
@@ -522,16 +529,14 @@ export default function HealthDashboardScreen({ navigation }) {
               <Text style={styles.infoCardTitle}>Data Sync Pipeline</Text>
             </View>
             <Text style={styles.infoCardText}>
-              Pebble Band synchronizes heart rate, steps, calories, sleep, and SpO2 to Pebble Health, which publishes records to Android Health Connect. Hand Band synchronizes this authenticated source to your dashboard.
+              Your fitness band communicates directly via Bluetooth Low Energy (BLE) to transmit real-time telemetry (Heart Rate, Steps, Active Calories, Distance & Sleep) seamlessly to your Hand Band dashboard.
             </Text>
             <View style={styles.pipelineRow}>
-              <Text style={styles.pipelineStep}>Pebble Band</Text>
+              <Text style={styles.pipelineStep}>Hand Band Wearable</Text>
               <Text style={styles.pipelineArrow}>→</Text>
-              <Text style={styles.pipelineStep}>Pebble Health</Text>
+              <Text style={styles.pipelineStep}>Bluetooth BLE</Text>
               <Text style={styles.pipelineArrow}>→</Text>
-              <Text style={styles.pipelineStep}>Health Connect</Text>
-              <Text style={styles.pipelineArrow}>→</Text>
-              <Text style={[styles.pipelineStep, styles.pipelineStepActive]}>Hand Band</Text>
+              <Text style={[styles.pipelineStep, styles.pipelineStepActive]}>Hand Band App</Text>
             </View>
           </View>
         </ScrollView>

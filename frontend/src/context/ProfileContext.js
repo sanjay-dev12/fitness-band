@@ -9,8 +9,15 @@ import {
   registerPushTokenApi,
   sendLowHrAlertApi,
   removeFamilyMemberApi,
+  setBluetoothStatusApi,
+  getBluetoothStatusApi,
 } from '../services/api';
-import { syncAllHealthData } from '../modules/health/health.service';
+import {
+  syncAllHealthData,
+  readHealthData,
+  setupHealthConnect,
+  checkGrantedPermissionsOnly,
+} from '../modules/health/health.service';
 import { LOW_HR_THRESHOLD, LOW_HR_ALERT_COOLDOWN_MS } from '../services/healthConstants';
 import { getExpoPushToken } from '../services/notificationService';
 import { useRef } from 'react';
@@ -20,15 +27,15 @@ const ProfileContext = createContext(null);
 const STORAGE_PROFILES_KEY = 'handband_family_profiles';
 const STORAGE_ACTIVE_ID_KEY = 'handband_active_profile_id';
 
-// Real empty/baseline metrics - zero hardcoded mock values
-export const BASELINE_METRICS = {
-  calories: 0,
+// Real empty initial metrics - zero hardcoded mock values
+const EMPTY_INITIAL_METRICS = {
+  calories: null,
   caloriesGoal: 500,
-  exerciseMins: 0,
+  exerciseMins: null,
   exerciseGoal: 30,
-  walkingHours: 0,
+  walkingHours: null,
   walkingGoal: 12,
-  steps: 0,
+  steps: null,
   heartRate: null,
   restingHeartRate: null,
   oxygen: null,
@@ -43,7 +50,7 @@ export const BASELINE_METRICS = {
   workoutType: null,
   workoutDuration: null,
   source: null,
-  statusText: 'Connected',
+  statusText: 'Not connected',
 };
 
 const getInitialProfiles = () => {
@@ -59,9 +66,9 @@ const getInitialProfiles = () => {
       isPrimary: true,
       avatar: null,
       initials: parentName.slice(0, 2).toUpperCase(),
-      metrics: { ...BASELINE_METRICS },
-      battery: 98,
-      online: true,
+      metrics: { ...EMPTY_INITIAL_METRICS },
+      battery: null,
+      online: false,
     },
   ];
 };
@@ -157,6 +164,21 @@ export function ProfileProvider({ children }) {
   };
 
   const [lastSyncedTime, setLastSyncedTime] = useState(null);
+  const [isBluetoothConnected, setIsBluetoothConnected] = useState(Platform.OS === 'android');
+
+  // Health Connect local device state
+  const [healthMetrics, setHealthMetrics] = useState({
+    heartRate: null,
+    steps: null,
+    calories: null,
+    distance: null,
+    sleepMinutes: null,
+    oxygenLevel: null,
+    lastSynced: null,
+    source: null,
+  });
+  const [healthStatus, setHealthStatus] = useState('idle'); // 'idle' | 'loading' | 'ready' | 'error' | 'permission_required'
+  const [healthError, setHealthError] = useState(null);
 
   /**
    * Fetch latest health telemetry for owner from backend
@@ -169,20 +191,25 @@ export function ProfileProvider({ children }) {
         if (d.syncedAt || d.recordedAt) {
           setLastSyncedTime(new Date(d.syncedAt || d.recordedAt));
         }
+        if (Platform.OS === 'web') {
+          setIsBluetoothConnected(false);
+        } else if (d.bluetoothConnected !== undefined) {
+          setIsBluetoothConnected(Boolean(d.bluetoothConnected));
+        }
         setProfiles((prev) =>
           prev.map((p) => {
             if (p.isPrimary) {
               return {
                 ...p,
-                battery: d.battery !== null && d.battery !== undefined ? d.battery : p.battery,
+                battery: d.battery !== null && d.battery !== undefined ? d.battery : null,
                 metrics: {
-                  calories: d.calories !== null && d.calories !== undefined ? d.calories : 0,
+                  calories: d.calories !== null && d.calories !== undefined ? d.calories : null,
                   caloriesGoal: 500,
-                  exerciseMins: d.exerciseMins !== null && d.exerciseMins !== undefined ? d.exerciseMins : 0,
+                  exerciseMins: d.exerciseMins !== null && d.exerciseMins !== undefined ? d.exerciseMins : null,
                   exerciseGoal: 30,
-                  walkingHours: d.walkingHours !== null && d.walkingHours !== undefined ? d.walkingHours : 0,
+                  walkingHours: d.walkingHours !== null && d.walkingHours !== undefined ? d.walkingHours : null,
                   walkingGoal: 12,
-                  steps: d.steps !== null && d.steps !== undefined ? d.steps : 0,
+                  steps: d.steps !== null && d.steps !== undefined ? d.steps : null,
                   heartRate: d.heartRate || null,
                   restingHeartRate: d.restingHeartRate || null,
                   oxygen: d.oxygenLevel || null,
@@ -196,8 +223,10 @@ export function ProfileProvider({ children }) {
                   stress: d.stress || null,
                   workoutType: d.workoutType || null,
                   workoutDuration: d.workoutDuration || null,
-                  source: d.source || 'Health Connect',
-                  statusText: d.statusText || 'Connected',
+                  source: d.source || 'Bluetooth Band',
+                  statusText: d.statusText || (d.bluetoothConnected === false ? 'Bluetooth Disconnected' : 'Connected'),
+                  bluetoothConnected: d.bluetoothConnected !== false,
+                  minutesElapsed: d.minutesElapsed || 0,
                 },
               };
             }
@@ -210,6 +239,30 @@ export function ProfileProvider({ children }) {
       console.log('Error loading health data:', e);
     }
   }, []);
+
+  /**
+   * Toggle Bluetooth state and communicate to backend
+   */
+  const toggleBluetooth = async (desiredState) => {
+    try {
+      const nextState = desiredState !== undefined ? Boolean(desiredState) : !isBluetoothConnected;
+      setIsBluetoothConnected(nextState);
+      const res = await setBluetoothStatusApi(nextState);
+      if (res?.success) {
+        showToast(
+          nextState
+            ? 'Bluetooth connected • Telemetry active'
+            : 'Bluetooth disconnected • Data calculation stopped',
+          nextState ? 'success' : 'info'
+        );
+      }
+      await refreshHealthData();
+      return { success: true, isConnected: nextState };
+    } catch (e) {
+      console.warn('toggleBluetooth error:', e);
+      return { success: false, error: e.message };
+    }
+  };
 
   /**
    * Fetch family circle members from backend database
@@ -242,23 +295,26 @@ export function ProfileProvider({ children }) {
             isPrimary: false,
             avatar: null,
             initials: memberName.slice(0, 2).toUpperCase(),
+            lastSynced: h?.syncedAt || h?.recordedAt || null,
             metrics: h
               ? {
-                  calories: h.calories || 0,
+                  calories: (h.calories !== null && h.calories !== undefined) ? h.calories : null,
                   caloriesGoal: 500,
-                  exerciseMins: h.exerciseMins || 0,
+                  exerciseMins: (h.exerciseMins !== null && h.exerciseMins !== undefined) ? h.exerciseMins : null,
                   exerciseGoal: 30,
-                  walkingHours: h.walkingHours || 0,
+                  walkingHours: (h.walkingHours !== null && h.walkingHours !== undefined) ? h.walkingHours : null,
                   walkingGoal: 12,
-                  steps: h.steps || 0,
+                  steps: (h.steps !== null && h.steps !== undefined) ? h.steps : null,
                   heartRate: h.heartRate || null,
                   oxygen: h.oxygenLevel || null,
                   sleepDuration: h.sleepDuration || null,
                   bodyAge: null,
                   statusText: h.statusText || 'In Target Zone',
+                  source: h.source || 'Bluetooth Band',
+                  lastSynced: h.syncedAt || h.recordedAt || null,
                 }
-              : { ...BASELINE_METRICS },
-            battery: h?.battery || 90,
+              : { ...EMPTY_INITIAL_METRICS, source: 'Bluetooth Band' },
+            battery: (h?.battery !== null && h?.battery !== undefined) ? h.battery : null,
             online: c.status === 'accepted',
             inviteCode: c.inviteCode,
             status: c.status,
@@ -314,7 +370,7 @@ export function ProfileProvider({ children }) {
                   stress: d.stress || null,
                   workoutType: d.workoutType || null,
                   workoutDuration: d.workoutDuration || null,
-                  source: d.source || 'Health Connect',
+                  source: d.source || 'Bluetooth Band',
                   statusText: d.statusText || 'Synchronized',
                 },
               };
@@ -330,6 +386,125 @@ export function ProfileProvider({ children }) {
       throw e;
     }
   };
+
+  /**
+   * Fetch on-device health data directly from Health Connect without duplicating fetch logic.
+   * Safe execution: catches errors internally and resolves cleanly without throwing.
+   */
+  const refreshDeviceHealth = useCallback(async () => {
+    if (Platform.OS !== 'android') {
+      setHealthStatus('idle');
+      return { success: false, reason: 'Health Connect is Android only' };
+    }
+
+    setHealthStatus('loading');
+    setHealthError(null);
+
+    try {
+      // 1. Non-intrusive check: verify granted permissions without triggering dialog
+      let perms = await checkGrantedPermissionsOnly();
+
+      // If permissions not yet granted, attempt setupHealthConnect (which can prompt)
+      if (!perms.ok || !perms.hasHeartRate) {
+        const setup = await setupHealthConnect();
+        if (!setup.ok) {
+          setHealthStatus('permission_required');
+          setHealthError(setup.reason || 'Health permissions required');
+          return { success: false, status: 'permission_required' };
+        }
+      }
+
+      // 2. Read live on-device records from Health Connect
+      const result = await readHealthData();
+      const raw = result?.data || {};
+
+      const stepsList = raw.steps || [];
+      const totalSteps = stepsList.reduce((sum, r) => sum + (r.count || 0), 0);
+
+      const caloriesList = raw.totalCalories || [];
+      const totalCal = caloriesList.reduce(
+        (sum, r) => sum + (r.energy?.inKilocalories || r.energy?.value || 0),
+        0
+      );
+
+      const distList = raw.distance || [];
+      const totalDistMeters = distList.reduce(
+        (sum, r) => sum + (r.distance?.inMeters || r.distance?.value || 0),
+        0
+      );
+      const distanceKm =
+        totalDistMeters > 0 ? Math.round((totalDistMeters / 1000) * 100) / 100 : null;
+
+      // Extract latest heart rate from records or samples
+      const hrList = raw.heartRate || [];
+      const allHrSamples = [];
+      for (const record of hrList) {
+        if (Array.isArray(record.samples)) {
+          for (const sample of record.samples) {
+            if (sample && typeof sample.beatsPerMinute === 'number') {
+              allHrSamples.push({
+                bpm: Math.round(sample.beatsPerMinute),
+                time: sample.time || record.startTime || record.endTime,
+              });
+            }
+          }
+        } else if (typeof record.beatsPerMinute === 'number') {
+          allHrSamples.push({
+            bpm: Math.round(record.beatsPerMinute),
+            time: record.startTime || record.endTime,
+          });
+        }
+      }
+      allHrSamples.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
+      const latestHr = allHrSamples.length > 0 ? allHrSamples[allHrSamples.length - 1].bpm : null;
+
+      // Compute sleep minutes from SleepSession records
+      const sleepList = raw.sleep || [];
+      const totalSleepMins = sleepList.reduce((total, s) => {
+        if (s.startTime && s.endTime) {
+          const start = new Date(s.startTime).getTime();
+          const end = new Date(s.endTime).getTime();
+          const diff = Math.max(0, Math.round((end - start) / (1000 * 60)));
+          return total + diff;
+        }
+        return total;
+      }, 0);
+
+      // Extract latest blood oxygen (SpO2)
+      const oxygenList = raw.oxygenSaturation || [];
+      let latestOxygen = null;
+      if (oxygenList.length > 0) {
+        const lastOx = oxygenList[oxygenList.length - 1];
+        if (typeof lastOx.percentage === 'number') {
+          latestOxygen = Math.round(lastOx.percentage);
+        }
+      }
+
+      const syncDate = new Date();
+      const mapped = {
+        heartRate: latestHr,
+        steps: totalSteps,
+        calories: Math.round(totalCal),
+        distance: distanceKm,
+        sleepMinutes: totalSleepMins > 0 ? totalSleepMins : null,
+        oxygenLevel: latestOxygen,
+        lastSynced: syncDate,
+        source: 'Bluetooth Band',
+      };
+
+      setHealthMetrics(mapped);
+      setHealthStatus('ready');
+      setHealthError(null);
+      setLastSyncedTime(syncDate);
+
+      return { success: true, metrics: mapped };
+    } catch (err) {
+      console.warn('[ProfileContext] refreshDeviceHealth error:', err);
+      setHealthStatus('error');
+      setHealthError(err?.message || 'Failed to read device health');
+      return { success: false, error: err?.message };
+    }
+  }, []);
 
   /**
    * Orchestrate full real synchronization from device/Health Connect
@@ -350,11 +525,10 @@ export function ProfileProvider({ children }) {
     }
   };
 
-  // Initial load of real backend health data and family connections
+  // Initial load of real backend health data, family connections, and device health
   useEffect(() => {
     refreshHealthData();
     refreshFamily();
-
     // Register push token for cross-device notifications
     const registerPushToken = async () => {
       try {
@@ -367,7 +541,11 @@ export function ProfileProvider({ children }) {
       }
     };
     registerPushToken();
-  }, [refreshHealthData, refreshFamily]);
+
+    if (Platform.OS === 'android') {
+      refreshDeviceHealth();
+    }
+  }, [refreshHealthData, refreshFamily, refreshDeviceHealth]);
 
   // Sync profiles to localStorage on Web
   useEffect(() => {
@@ -456,10 +634,16 @@ export function ProfileProvider({ children }) {
         addFamilyMemberProfile,
         removeFamilyMemberProfile,
         refreshHealthData,
+        refreshDeviceHealth,
+        healthMetrics,
+        healthStatus,
+        healthError,
         refreshFamily,
         syncHealthTelemetry,
         syncHealthData,
         lastSyncedTime,
+        isBluetoothConnected,
+        toggleBluetooth,
         toast,
         showToast,
         hideToast,
@@ -482,3 +666,4 @@ export function useProfile() {
   }
   return context;
 }
+

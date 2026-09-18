@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Platform } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import Svg, { Circle } from 'react-native-svg';
 import {
@@ -18,14 +18,75 @@ import {
   Zap,
   Compass,
   Shield,
+  ShieldCheck,
+  ChevronRight,
+  RefreshCw,
 } from 'lucide-react-native';
 import ProfileSwitcher from '../components/ProfileSwitcher';
 import { useProfile } from '../context/ProfileContext';
+import { formatConnectedDateTime } from '../utils/dateUtils';
 
 export default function HomeScreen({ navigation }) {
-  const { activeProfile, refreshHealthData, refreshFamily, syncHealthData, lastSyncedTime } = useProfile();
+  const {
+    activeProfile,
+    refreshHealthData,
+    refreshDeviceHealth,
+    healthMetrics,
+    healthStatus,
+    refreshFamily,
+    syncHealthData,
+    lastSyncedTime,
+    isBluetoothConnected,
+    showToast,
+  } = useProfile();
   const { theme } = useTheme();
   const [refreshing, setRefreshing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('ready'); // 'ready' | 'syncing' | 'success' | 'error'
+  const isSyncing = syncStatus === 'syncing';
+
+  const handleSyncNow = async () => {
+    if (syncStatus === 'syncing') return;
+    setSyncStatus('syncing');
+    try {
+      if (syncHealthData) {
+        const res = await syncHealthData();
+        if (res?.success) {
+          setSyncStatus('success');
+          showToast?.('Health data synced successfully', 'success');
+          setTimeout(() => setSyncStatus('ready'), 3500);
+        } else {
+          setSyncStatus('error');
+          showToast?.(res?.error || 'Sync failed', 'error');
+          setTimeout(() => setSyncStatus('ready'), 3500);
+        }
+      }
+    } catch (e) {
+      setSyncStatus('error');
+      showToast?.(e.message || 'Sync failed', 'error');
+      setTimeout(() => setSyncStatus('ready'), 3500);
+    }
+    await Promise.all([
+      refreshDeviceHealth?.(),
+      refreshHealthData?.(),
+      refreshFamily?.(),
+    ]);
+  };
+
+  // Auto-sync & load latest telemetry whenever user navigates or comes to Home page
+  useEffect(() => {
+    refreshHealthData?.();
+    refreshFamily?.();
+    if (Platform.OS === 'android' && syncHealthData) {
+      syncHealthData().catch((e) => console.log('Home initial sync note:', e.message));
+    }
+
+    const unsubscribe = navigation?.addListener?.('focus', () => {
+      refreshHealthData?.();
+      refreshFamily?.();
+    });
+
+    return unsubscribe;
+  }, [navigation, refreshHealthData, refreshFamily, syncHealthData]);
 
   const formatLastSynced = (date) => {
     if (!date) return 'Connected';
@@ -45,24 +106,100 @@ export default function HomeScreen({ navigation }) {
     } catch (e) {
       console.warn('Sync on refresh error:', e);
     }
-    await Promise.all([refreshHealthData?.(), refreshFamily?.()]);
+    await Promise.all([
+      refreshDeviceHealth?.(),
+      refreshHealthData?.(),
+      refreshFamily?.(),
+    ]);
     setRefreshing(false);
   };
 
+  const isOwner = activeProfile?.isPrimary !== false;
   const m = activeProfile?.metrics || {};
+  const isWeb = Platform.OS === 'web';
+  const hasRealConnection = !isWeb && Boolean(isBluetoothConnected);
+
+  // Integrated values: prioritize real synced backend metrics, with live healthMetrics fallback
+  const calValue = isWeb
+    ? null
+    : (m.calories !== undefined && m.calories !== null
+      ? m.calories
+      : (healthMetrics?.calories !== null && healthMetrics?.calories !== undefined ? healthMetrics.calories : null));
+
+  const stepsValue = isWeb
+    ? null
+    : (m.steps !== undefined && m.steps !== null
+      ? m.steps
+      : (healthMetrics?.steps !== null && healthMetrics?.steps !== undefined ? healthMetrics.steps : null));
 
   // Goal calculations
-  const calValue = m.calories || 0;
   const calGoal = m.caloriesGoal || 500;
-  const calPct = Math.round((calValue / calGoal) * 100);
+  const calPct = calValue !== null ? Math.round((calValue / calGoal) * 100) : 0;
 
-  const workValue = m.exerciseMins || 0;
+  // Real reported values only — no fabricated or unvalidated derivations
+  const workValue = isWeb
+    ? null
+    : ((m.exerciseMins !== null && m.exerciseMins !== undefined) ? m.exerciseMins : null);
   const workGoal = m.exerciseGoal || 30;
-  const workPct = Math.round((workValue / workGoal) * 100);
+  const workPct = workValue !== null ? Math.round((workValue / workGoal) * 100) : 0;
 
-  const moveValue = m.walkingHours || 0;
+  const moveValue = isWeb
+    ? null
+    : ((m.walkingHours !== null && m.walkingHours !== undefined) ? m.walkingHours : null);
   const moveGoal = m.walkingGoal || 12;
-  const movePct = Math.round((moveValue / moveGoal) * 100);
+  const movePct = moveValue !== null ? Math.round((moveValue / moveGoal) * 100) : 0;
+
+  // Health card interaction: prompt permissions if required, else open telemetry
+  const handleHealthCardPress = async () => {
+    if (healthStatus === 'permission_required') {
+      await refreshDeviceHealth?.();
+    } else {
+      navigation?.navigate('HealthDashboard');
+    }
+  };
+
+  // Status badge text mapping
+  const getStatusBadge = (fieldVal) => {
+    if (!isBluetoothConnected) return 'Paused';
+    switch (healthStatus) {
+      case 'loading':
+        return 'Syncing';
+      case 'error':
+        return 'Error';
+      case 'permission_required':
+        return 'Tap to enable';
+      case 'ready':
+        return (fieldVal !== null && fieldVal !== undefined && fieldVal !== '') ? 'Live' : 'No data';
+      case 'idle':
+      default:
+        return (fieldVal !== null && fieldVal !== undefined) ? 'Live' : 'Awaiting';
+    }
+  };
+
+  // Status badge color mapping
+  const getBadgeColors = (badgeText) => {
+    switch (badgeText) {
+      case 'Live':
+        return { bg: 'rgba(0, 230, 118, 0.14)', text: '#00E676' };
+      case 'Syncing':
+        return { bg: 'rgba(0, 191, 165, 0.14)', text: '#00BFA5' };
+      case 'Tap to enable':
+        return { bg: 'rgba(255, 167, 38, 0.18)', text: '#FFA726' };
+      case 'Paused':
+        return { bg: 'rgba(255, 82, 82, 0.16)', text: '#FF5252' };
+      case 'Error':
+        return { bg: 'rgba(255, 82, 82, 0.16)', text: '#FF5252' };
+      default:
+        return { bg: 'rgba(122, 158, 168, 0.14)', text: '#8FAAB2' };
+    }
+  };
+
+  // Live metric resolution: prioritize synced values from backend
+  const displayHr = m.heartRate || healthMetrics?.heartRate || null;
+  const displaySleep = m.sleepDuration || (healthMetrics?.sleepMinutes ? `${Math.floor(healthMetrics.sleepMinutes / 60)}h ${healthMetrics.sleepMinutes % 60}m` : null);
+  const displaySteps = (m.steps !== undefined && m.steps !== null) ? m.steps : (healthMetrics?.steps ?? null);
+  const displayOxygen = m.oxygen || healthMetrics?.oxygenLevel || null;
+  const displayDistance = (m.distance !== null && m.distance !== undefined) ? m.distance : (healthMetrics?.distance ?? null);
 
   // SVG Concentric Ring Geometries
   const center = 66;
@@ -74,52 +211,66 @@ export default function HomeScreen({ navigation }) {
 
   const rMid = 39;
   const cMid = 2 * Math.PI * rMid;
-  const offsetMid = cMid * (1 - Math.min(1, workValue / workGoal));
+  const offsetMid = cMid * (1 - Math.min(1, (workValue || 0) / workGoal));
 
   const rInner = 26;
   const cInner = 2 * Math.PI * rInner;
-  const offsetInner = cInner * (1 - Math.min(1, moveValue / moveGoal));
+  const offsetInner = cInner * (1 - Math.min(1, (moveValue || 0) / moveGoal));
 
   return (
     <View style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* 1. Header / Band Status */}
       <View style={[styles.header, { backgroundColor: theme.bgCard, borderBottomColor: theme.borderSub }]}>
+        {/* Top Device Pill */}
         <TouchableOpacity
-          style={styles.headerBandChip}
+          style={styles.deviceCardPill}
           onPress={() => navigation?.navigate('Device')}
           activeOpacity={0.8}
         >
-          <View style={styles.watchIconContainer}>
-            <Watch color={theme.accent} size={16} />
+          <View style={[styles.watchIconContainer, !hasRealConnection && { backgroundColor: 'rgba(122, 158, 168, 0.12)' }]}>
+            <Watch color={hasRealConnection ? theme.accent : "#7A9EA8"} size={16} />
           </View>
           <View style={styles.bandInfoCol}>
             <View style={styles.bandNameRow}>
               <Text style={[styles.bandNameText, { color: theme.textPrimary }]} numberOfLines={1}>
-                {activeProfile.name}'s Band
+                {hasRealConnection ? `${activeProfile.name}'s Band` : 'No Device Linked'}
               </Text>
               <View style={styles.batteryChip}>
                 <Battery color={theme.textSecondary} size={12} style={{ marginRight: 3 }} />
                 <Text style={[styles.batteryText, { color: theme.textSecondary }]}>
-                  {activeProfile.battery !== null && activeProfile.battery !== undefined
+                  {hasRealConnection && activeProfile.battery !== null && activeProfile.battery !== undefined
                     ? `${activeProfile.battery}%`
                     : '--'}
                 </Text>
               </View>
             </View>
             <View style={styles.statusRow}>
-              <View style={styles.greenStatusDot} />
-              <Text style={[styles.statusLabel, { color: theme.textSuccess }]}>Connected</Text>
+              <View style={[styles.greenStatusDot, !hasRealConnection && { backgroundColor: '#7A9EA8' }]} />
+              <Text style={[styles.statusLabel, !hasRealConnection ? { color: '#7A9EA8' } : { color: theme.textSuccess }]}>
+                {hasRealConnection ? `Connected • ${formatConnectedDateTime(lastSyncedTime, true)}` : 'Not connected'}
+              </Text>
             </View>
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.chatButton, { backgroundColor: theme.bg, borderColor: theme.border }]}
-          onPress={() => navigation?.navigate('FamilySetup')}
-          activeOpacity={0.8}
-        >
-          <MessageSquare color={theme.textPrimary} size={18} />
-        </TouchableOpacity>
+        <View style={styles.headerRightRow}>
+          <TouchableOpacity
+            style={styles.headerSyncButton}
+            onPress={onRefresh}
+            disabled={refreshing}
+            activeOpacity={0.75}
+          >
+            <RefreshCw color={theme.accent} size={16} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.chatButton, { backgroundColor: theme.bg, borderColor: theme.border }]}
+            onPress={() => navigation?.navigate('FamilySetup')}
+            activeOpacity={0.8}
+          >
+            <MessageSquare color={theme.textPrimary} size={18} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* 3. Family Profiles Section */}
@@ -144,25 +295,103 @@ export default function HomeScreen({ navigation }) {
         </View>
 
         {/* 4. Live Status Card */}
-        <View style={[styles.liveStatusCard, { backgroundColor: theme.bgCard, borderColor: theme.bgTagBorder }]}>
+        <TouchableOpacity
+          style={[styles.liveStatusCard, { backgroundColor: theme.bgCard, borderColor: theme.bgTagBorder }, !hasRealConnection && { borderColor: 'rgba(122, 158, 168, 0.25)' }]}
+          onPress={() => navigation?.navigate('HealthDashboard')}
+          activeOpacity={0.85}
+        >
           <View style={styles.liveStatusLeft}>
             <View style={styles.livePulseDotContainer}>
-              <View style={styles.livePulseOuter} />
-              <View style={styles.livePulseInner} />
+              <View style={[styles.livePulseOuter, !hasRealConnection && { backgroundColor: 'rgba(122, 158, 168, 0.15)' }]} />
+              <View style={[styles.livePulseInner, !hasRealConnection && { backgroundColor: '#7A9EA8' }]} />
             </View>
             <View style={styles.liveStatusTextCol}>
               <Text style={[styles.liveStatusTitle, { color: theme.textPrimary }]}>
-                {activeProfile.name} is active now
+                {isWeb
+                  ? 'No Device Paired on Web'
+                  : (hasRealConnection ? `${activeProfile.name} is active now` : `${activeProfile.name}'s Band Paused`)}
               </Text>
               <View style={styles.liveStatusSubRow}>
-                <Watch color={theme.accent} size={13} style={{ marginRight: 4 }} />
-                <Text style={[styles.liveStatusSubtitle, { color: theme.textSecondary }]}>{formatLastSynced(lastSyncedTime)}</Text>
+                <Watch color={hasRealConnection ? theme.accent : "#7A9EA8"} size={13} style={{ marginRight: 4 }} />
+                <Text style={[styles.liveStatusSubtitle, { color: theme.textSecondary }]}>
+                  {isWeb
+                    ? 'Health sync is only available on the Android app'
+                    : (hasRealConnection
+                      ? `${formatConnectedDateTime(lastSyncedTime)} • Live Synced`
+                      : 'Connect a band on Android to sync health data')}
+                </Text>
               </View>
             </View>
           </View>
-          <View style={styles.liveBadge}>
-            <Zap color="#00E676" size={12} style={{ marginRight: 4 }} />
-            <Text style={styles.liveBadgeText}>Live Status</Text>
+          <View style={[styles.liveBadge, !hasRealConnection && { backgroundColor: 'rgba(122, 158, 168, 0.14)' }]}>
+            <Text style={[styles.liveBadgeText, !hasRealConnection && { color: '#8FAAB2' }]}>
+              {isWeb ? 'Web Mode' : (hasRealConnection ? 'Live Status' : 'Stopped')}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        {/* Band Bluetooth Connection Card / Web Notice */}
+        <View style={styles.connectedHealthCard}>
+          <View style={styles.connectedHealthHeader}>
+            <View style={styles.connectedHealthLeft}>
+              <View style={[styles.connectedHealthIconBox, isWeb && { backgroundColor: 'rgba(41, 182, 246, 0.12)' }]}>
+                <Activity color={isWeb ? "#29B6F6" : "#00BFA5"} size={20} />
+              </View>
+              <View>
+                <Text style={styles.connectedHealthTitle}>
+                  {isWeb ? 'Platform Health Sync' : 'Band Bluetooth Connection'}
+                </Text>
+                <Text style={styles.connectedHealthSub}>
+                  {isWeb
+                    ? 'Health sync is only available on the Android app'
+                    : (hasRealConnection
+                      ? `Connected: ${formatConnectedDateTime(lastSyncedTime)}`
+                      : 'Not connected')}
+                </Text>
+              </View>
+            </View>
+            <View style={[styles.connectedHealthBadge, !hasRealConnection && { backgroundColor: 'rgba(122, 158, 168, 0.14)' }]}>
+              {hasRealConnection && <ShieldCheck color="#00E676" size={13} style={{ marginRight: 4 }} />}
+              <Text style={[styles.connectedHealthBadgeText, !hasRealConnection && { color: '#8FAAB2' }]}>
+                {isWeb ? 'Android Only' : (hasRealConnection ? 'Synced' : 'Offline')}
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.connectedHealthDesc}>
+            {isWeb
+              ? 'Wearable Bluetooth Low Energy (BLE) pairing and sensor telemetry require hardware access supported on the Android mobile application.'
+              : 'Live biometric telemetry (Heart Rate, Steps, Active Calories & Sleep) transmitting directly via Bluetooth Low Energy.'}
+          </Text>
+
+          <View style={styles.connectedHealthButtonsRow}>
+            <TouchableOpacity
+              style={styles.openDashboardButton}
+              onPress={() => navigation?.navigate('HealthDashboard')}
+              activeOpacity={0.8}
+            >
+              <Heart color="#00BFA5" size={16} style={{ marginRight: 6 }} />
+              <Text style={styles.openDashboardButtonText}>View Health Telemetry</Text>
+              <ChevronRight color="#00BFA5" size={16} style={{ marginLeft: 2 }} />
+            </TouchableOpacity>
+
+            {!isWeb && (
+              <TouchableOpacity
+                style={[styles.quickSyncSmallButton, isSyncing && { opacity: 0.6 }]}
+                onPress={handleSyncNow}
+                disabled={isSyncing}
+                activeOpacity={0.8}
+              >
+                {isSyncing ? (
+                  <ActivityIndicator size="small" color="#001F27" />
+                ) : (
+                  <>
+                    <RefreshCw color="#001F27" size={14} style={{ marginRight: 5 }} />
+                    <Text style={styles.quickSyncSmallButtonText}>Sync Now</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -180,7 +409,7 @@ export default function HomeScreen({ navigation }) {
                 <Flame color="#FF5252" size={18} />
               </View>
               <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{calValue}</Text>
+                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{calValue !== null && calValue !== undefined ? calValue : '--'}</Text>
                 <Text style={[styles.metricUnit, { color: theme.textSecondary }]}>kcal</Text>
               </View>
               <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Calories</Text>
@@ -192,7 +421,7 @@ export default function HomeScreen({ navigation }) {
                 <Activity color="#00E676" size={18} />
               </View>
               <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{workValue}</Text>
+                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{workValue !== null && workValue !== undefined ? workValue : '--'}</Text>
                 <Text style={[styles.metricUnit, { color: theme.textSecondary }]}>min</Text>
               </View>
               <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Workout</Text>
@@ -204,7 +433,7 @@ export default function HomeScreen({ navigation }) {
                 <Footprints color="#00BFA5" size={18} />
               </View>
               <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{(m.steps || 0).toLocaleString()}</Text>
+                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{stepsValue !== null && stepsValue !== undefined ? stepsValue.toLocaleString() : '--'}</Text>
                 <Text style={[styles.metricUnit, { color: theme.textSecondary }]}>steps</Text>
               </View>
               <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Steps</Text>
@@ -216,7 +445,7 @@ export default function HomeScreen({ navigation }) {
                 <Clock color="#29B6F6" size={18} />
               </View>
               <View style={styles.metricValueRow}>
-                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{moveValue}</Text>
+                <Text style={[styles.metricValue, { color: theme.textPrimary }]}>{moveValue !== null && moveValue !== undefined ? moveValue : '--'}</Text>
                 <Text style={[styles.metricUnit, { color: theme.textSecondary }]}>hrs</Text>
               </View>
               <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>Move Hours</Text>
@@ -321,10 +550,10 @@ export default function HomeScreen({ navigation }) {
                 </View>
                 <View style={styles.goalItemValueRow}>
                   <Text style={[styles.goalItemValues, { color: theme.textPrimary }]}>
-                    {calValue} <Text style={[styles.goalItemTarget, { color: theme.textSecondary }]}>/ {calGoal} kcal</Text>
+                    {calValue !== null ? calValue : '--'} <Text style={[styles.goalItemTarget, { color: theme.textSecondary }]}>/ {calGoal} kcal</Text>
                   </Text>
                   <View style={[styles.pctBadge, { backgroundColor: 'rgba(255, 82, 82, 0.14)' }]}>
-                    <Text style={[styles.pctBadgeText, { color: '#FF5252' }]}>{calPct}%</Text>
+                    <Text style={[styles.pctBadgeText, { color: '#FF5252' }]}>{calValue !== null ? `${calPct}%` : '--'}</Text>
                   </View>
                 </View>
               </View>
@@ -347,10 +576,10 @@ export default function HomeScreen({ navigation }) {
                 </View>
                 <View style={styles.goalItemValueRow}>
                   <Text style={[styles.goalItemValues, { color: theme.textPrimary }]}>
-                    {workValue} <Text style={[styles.goalItemTarget, { color: theme.textSecondary }]}>/ {workGoal} min</Text>
+                    {workValue !== null ? workValue : '--'} <Text style={[styles.goalItemTarget, { color: theme.textSecondary }]}>/ {workGoal} min</Text>
                   </Text>
                   <View style={[styles.pctBadge, { backgroundColor: 'rgba(0, 230, 118, 0.14)' }]}>
-                    <Text style={[styles.pctBadgeText, { color: '#00E676' }]}>{workPct}%</Text>
+                    <Text style={[styles.pctBadgeText, { color: '#00E676' }]}>{workValue !== null ? `${workPct}%` : '--'}</Text>
                   </View>
                 </View>
               </View>
@@ -373,10 +602,10 @@ export default function HomeScreen({ navigation }) {
                 </View>
                 <View style={styles.goalItemValueRow}>
                   <Text style={[styles.goalItemValues, { color: theme.textPrimary }]}>
-                    {moveValue} <Text style={[styles.goalItemTarget, { color: theme.textSecondary }]}>/ {moveGoal} hrs</Text>
+                    {moveValue !== null ? moveValue : '--'} <Text style={[styles.goalItemTarget, { color: theme.textSecondary }]}>/ {moveGoal} hrs</Text>
                   </Text>
                   <View style={[styles.pctBadge, { backgroundColor: 'rgba(41, 182, 246, 0.14)' }]}>
-                    <Text style={[styles.pctBadgeText, { color: '#29B6F6' }]}>{movePct}%</Text>
+                    <Text style={[styles.pctBadgeText, { color: '#29B6F6' }]}>{moveValue !== null ? `${movePct}%` : '--'}</Text>
                   </View>
                 </View>
               </View>
@@ -407,22 +636,33 @@ export default function HomeScreen({ navigation }) {
             <TouchableOpacity
               style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}
               activeOpacity={0.8}
-              onPress={() => navigation?.navigate('HealthDashboard')}
+              onPress={handleHealthCardPress}
             >
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(255, 82, 82, 0.12)' }]}>
                   <Heart color="#FF5252" size={16} />
                 </View>
-                <View style={styles.insightStatusTag}>
-                  <Text style={styles.insightStatusTagText}>
-                    {m.heartRate ? (m.heartRate < 60 ? 'Resting' : m.heartRate > 100 ? 'Elevated' : 'Normal') : 'Awaiting'}
-                  </Text>
-                </View>
+                {(() => {
+                  const badge = getStatusBadge(displayHr);
+                  const colors = getBadgeColors(badge);
+                  return (
+                    <View style={[styles.insightStatusTag, { backgroundColor: colors.bg }]}>
+                      <Text style={[styles.insightStatusTagText, { color: colors.text }]}>
+                        {badge}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
               <Text style={[styles.insightName, { color: theme.textSecondary }]}>Heart Rate</Text>
               <View style={styles.insightValueRow}>
+<<<<<<< HEAD
                 <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{m.heartRate ? m.heartRate : '--'}</Text>
                 <Text style={[styles.insightValUnit, { color: theme.textSecondary }]}>BPM</Text>
+=======
+                <Text style={styles.insightMainVal}>{displayHr ? displayHr : '--'}</Text>
+                <Text style={styles.insightValUnit}>BPM</Text>
+>>>>>>> origin/main
               </View>
               {/* Mini pulse bars */}
               <View style={styles.waveformContainer}>
@@ -435,69 +675,109 @@ export default function HomeScreen({ navigation }) {
             </TouchableOpacity>
 
             {/* Insight 2: Sleep */}
+<<<<<<< HEAD
             <View style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
+=======
+            <TouchableOpacity
+              style={styles.insightCard}
+              activeOpacity={0.8}
+              onPress={handleHealthCardPress}
+            >
+>>>>>>> origin/main
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(171, 71, 188, 0.12)' }]}>
                   <Moon color="#AB47BC" size={16} />
                 </View>
-                <View style={[styles.insightStatusTag, { backgroundColor: 'rgba(171, 71, 188, 0.14)' }]}>
-                  <Text style={[styles.insightStatusTagText, { color: '#CE93D8' }]}>
-                    {m.sleepDuration ? 'Good' : 'Tracking'}
-                  </Text>
-                </View>
+                {(() => {
+                  const badge = getStatusBadge(displaySleep);
+                  const colors = getBadgeColors(badge);
+                  return (
+                    <View style={[styles.insightStatusTag, { backgroundColor: colors.bg }]}>
+                      <Text style={[styles.insightStatusTagText, { color: colors.text }]}>
+                        {badge}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
               <Text style={[styles.insightName, { color: theme.textSecondary }]}>Sleep</Text>
               <View style={styles.insightValueRow}>
-                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{m.sleepDuration ? m.sleepDuration : '--'}</Text>
+                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{displaySleep ? displaySleep : '--'}</Text>
               </View>
               <Text style={[styles.insightNote, { color: theme.textMuted }]}>
-                {m.sleepDuration ? 'Optimal recovery' : 'Wear band during sleep'}
+                {displaySleep ? 'Optimal recovery' : 'Wear band during sleep'}
               </Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Insight 3: Steps */}
-            <View style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
+            <TouchableOpacity
+              style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}
+              activeOpacity={0.8}
+              onPress={handleHealthCardPress}
+            >
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(0, 191, 165, 0.12)' }]}>
                   <Footprints color="#00BFA5" size={16} />
                 </View>
-                <View style={[styles.insightStatusTag, { backgroundColor: 'rgba(0, 191, 165, 0.14)' }]}>
-                  <Text style={[styles.insightStatusTagText, { color: '#00BFA5' }]}>
-                    {(m.steps || 0) > 0 ? 'Active' : 'Standby'}
-                  </Text>
-                </View>
+                {(() => {
+                  const badge = getStatusBadge(displaySteps);
+                  const colors = getBadgeColors(badge);
+                  return (
+                    <View style={[styles.insightStatusTag, { backgroundColor: colors.bg }]}>
+                      <Text style={[styles.insightStatusTagText, { color: colors.text }]}>
+                        {badge}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
               <Text style={[styles.insightName, { color: theme.textSecondary }]}>Daily Steps</Text>
               <View style={styles.insightValueRow}>
-                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{(m.steps || 0).toLocaleString()}</Text>
+                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>
+                  {displaySteps !== null && displaySteps !== undefined ? displaySteps.toLocaleString() : '--'}
+                </Text>
               </View>
               <Text style={[styles.insightNote, { color: theme.textMuted }]}>Goal: 10,000</Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Insight 4: SpO2 Blood Oxygen */}
-            <View style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
+            <TouchableOpacity
+              style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}
+              activeOpacity={0.8}
+              onPress={handleHealthCardPress}
+            >
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(41, 182, 246, 0.12)' }]}>
                   <Droplets color="#29B6F6" size={16} />
                 </View>
-                <View style={[styles.insightStatusTag, { backgroundColor: 'rgba(41, 182, 246, 0.14)' }]}>
-                  <Text style={[styles.insightStatusTagText, { color: '#90CAF9' }]}>
-                    {m.oxygen ? (m.oxygen >= 95 ? 'Optimal' : 'Low') : 'Awaiting'}
-                  </Text>
-                </View>
+                {(() => {
+                  const badge = getStatusBadge(displayOxygen);
+                  const colors = getBadgeColors(badge);
+                  return (
+                    <View style={[styles.insightStatusTag, { backgroundColor: colors.bg }]}>
+                      <Text style={[styles.insightStatusTagText, { color: colors.text }]}>
+                        {badge}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
               <Text style={[styles.insightName, { color: theme.textSecondary }]}>Blood Oxygen</Text>
               <View style={styles.insightValueRow}>
-                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{m.oxygen ? m.oxygen : '--'}</Text>
+                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{displayOxygen ? `${displayOxygen}` : '--'}</Text>
                 <Text style={[styles.insightValUnit, { color: theme.textSecondary }]}>%</Text>
               </View>
               <Text style={[styles.insightNote, { color: theme.textMuted }]}>
-                {m.oxygen ? 'Healthy saturation' : 'Sync to record SpO2'}
+                {displayOxygen ? 'Healthy saturation' : 'Sync to record SpO2'}
               </Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Insight 5: HRV Recovery */}
-            <View style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
+            <TouchableOpacity
+              style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}
+              activeOpacity={0.8}
+              onPress={handleHealthCardPress}
+            >
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(0, 230, 118, 0.12)' }]}>
                   <Zap color="#00E676" size={16} />
@@ -514,31 +794,41 @@ export default function HomeScreen({ navigation }) {
                 <Text style={[styles.insightValUnit, { color: theme.textSecondary }]}>ms</Text>
               </View>
               <Text style={[styles.insightNote, { color: theme.textMuted }]}>
-                {m.hrv ? 'Pebble RMSSD score' : 'Sync to record HRV'}
+                {m.hrv ? 'Live RMSSD score' : 'Sync to record HRV'}
               </Text>
-            </View>
+            </TouchableOpacity>
 
             {/* Insight 6: Distance */}
-            <View style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}>
+            <TouchableOpacity
+              style={[styles.insightCard, { backgroundColor: theme.bgCardAlt, borderColor: theme.borderSub }]}
+              activeOpacity={0.8}
+              onPress={handleHealthCardPress}
+            >
               <View style={styles.insightHeaderRow}>
                 <View style={[styles.insightIconBox, { backgroundColor: 'rgba(255, 167, 38, 0.12)' }]}>
                   <Compass color="#FFA726" size={16} />
                 </View>
-                <View style={[styles.insightStatusTag, { backgroundColor: 'rgba(255, 167, 38, 0.14)' }]}>
-                  <Text style={[styles.insightStatusTagText, { color: '#FFA726' }]}>
-                    {m.distance ? 'Tracked' : 'Standby'}
-                  </Text>
-                </View>
+                {(() => {
+                  const badge = getStatusBadge(displayDistance);
+                  const colors = getBadgeColors(badge);
+                  return (
+                    <View style={[styles.insightStatusTag, { backgroundColor: colors.bg }]}>
+                      <Text style={[styles.insightStatusTagText, { color: colors.text }]}>
+                        {badge}
+                      </Text>
+                    </View>
+                  );
+                })()}
               </View>
               <Text style={[styles.insightName, { color: theme.textSecondary }]}>Distance</Text>
               <View style={styles.insightValueRow}>
-                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{m.distance !== null && m.distance !== undefined ? m.distance : '--'}</Text>
+                <Text style={[styles.insightMainVal, { color: theme.textPrimary }]}>{displayDistance !== null && displayDistance !== undefined ? displayDistance : '--'}</Text>
                 <Text style={[styles.insightValUnit, { color: theme.textSecondary }]}>km</Text>
               </View>
               <Text style={[styles.insightNote, { color: theme.textMuted }]}>
-                {m.distance ? 'Pebble activity distance' : 'Sync to record distance'}
+                {displayDistance ? 'Active walking distance' : 'Sync to record distance'}
               </Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
       </ScrollView>
@@ -619,6 +909,21 @@ const styles = StyleSheet.create({
   statusLabel: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  headerRightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  headerSyncButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#001F27',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 191, 165, 0.35)',
   },
   chatButton: {
     width: 36,
@@ -934,5 +1239,103 @@ const styles = StyleSheet.create({
     width: 3.5,
     backgroundColor: 'rgba(255, 82, 82, 0.35)',
     borderRadius: 2,
+  },
+
+  // Connected Health Card
+  connectedHealthCard: {
+    backgroundColor: '#002B36',
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 191, 165, 0.25)',
+  },
+  connectedHealthHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  connectedHealthLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  connectedHealthIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 191, 165, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 191, 165, 0.3)',
+  },
+  connectedHealthTitle: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  connectedHealthSub: {
+    color: '#8FAAB2',
+    fontSize: 11,
+    marginTop: 1,
+  },
+  connectedHealthBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 230, 118, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 0.5,
+    borderColor: 'rgba(0, 230, 118, 0.3)',
+  },
+  connectedHealthBadgeText: {
+    color: '#00E676',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  connectedHealthDesc: {
+    color: '#8FAAB2',
+    fontSize: 12,
+    lineHeight: 17,
+    marginBottom: 14,
+  },
+  connectedHealthButtonsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    alignItems: 'center',
+  },
+  openDashboardButton: {
+    flex: 1,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0, 191, 165, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 191, 165, 0.3)',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+  },
+  openDashboardButtonText: {
+    color: '#00BFA5',
+    fontSize: 12.5,
+    fontWeight: '700',
+  },
+  quickSyncSmallButton: {
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: '#00BFA5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  quickSyncSmallButtonText: {
+    color: '#001F27',
+    fontSize: 12.5,
+    fontWeight: '700',
   },
 });
